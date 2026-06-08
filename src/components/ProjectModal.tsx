@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import {
+  formatMrr,
   STATUS_COLORS,
   STATUS_LABELS,
   type PublicProject,
@@ -89,7 +90,7 @@ export default function ProjectModal({ project, onClose }: Props) {
               MRR
             </h3>
             <p className="mt-1 text-sm text-zinc-300">
-              {project.mrr > 0 ? `€${project.mrr}` : "—"}
+              {formatMrr(project.mrr)}
             </p>
           </div>
           <div>

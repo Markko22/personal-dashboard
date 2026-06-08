@@ -57,7 +57,7 @@ export function toPublicProject(row: Record<string, unknown>): PublicProject {
     tagline: row.tagline as string,
     status: row.status as ProjectStatus,
     next_milestone: (row.next_milestone as string | null) ?? null,
-    mrr: (row.mrr as number) ?? 0,
+    mrr: Number(row.mrr) || 0,
     users_count: (row.users_count as number) ?? 0,
     stack: (row.stack as string[]) ?? [],
     url_site: (row.url_site as string | null) ?? null,
@@ -77,6 +77,16 @@ export const STATUS_LABELS: Record<ProjectStatus, string> = {
   paused: "Paused",
   archived: "Archived",
 };
+
+export function formatMrr(mrr: number): string {
+  if (mrr <= 0) return "—";
+  return new Intl.NumberFormat("it-IT", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(mrr);
+}
 
 export const STATUS_COLORS: Record<
   ProjectStatus,

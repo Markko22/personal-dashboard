@@ -5,7 +5,7 @@ create table if not exists public.projects (
   tagline text not null check (char_length(tagline) <= 80),
   status text not null check (status in ('idea', 'building', 'beta', 'live', 'paused', 'archived')),
   next_milestone text,
-  mrr integer not null default 0,
+  mrr numeric(10, 2) not null default 0,
   users_count integer not null default 0,
   stack text[] not null default '{}',
   url_site text,
@@ -68,3 +68,6 @@ create policy "No public access telegram_sessions"
 
 -- Enable Realtime for live dashboard updates
 alter publication supabase_realtime add table public.projects;
+
+-- Migration (run once if mrr was previously integer):
+-- alter table public.projects alter column mrr type numeric(10, 2) using mrr::numeric(10, 2);

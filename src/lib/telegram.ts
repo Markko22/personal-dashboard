@@ -48,6 +48,21 @@ function isAllowedUser(userId: number): boolean {
   return String(userId) === allowed;
 }
 
+/** Parse MRR from bot input — accepts decimals with dot (e.g. "4.90"). */
+function parseMrr(raw: string): number | null {
+  const value = raw.trim();
+  if (!/^\d+(\.\d+)?$/.test(value)) return null;
+
+  const parsed = parseFloat(value);
+  if (isNaN(parsed) || parsed < 0) return null;
+
+  return Math.round(parsed * 100) / 100;
+}
+
+function formatMrr(value: number): string {
+  return value.toFixed(2);
+}
+
 async function findProjectByIdPrefix(prefix: string): Promise<Project | null> {
   const supabase = createServiceClient();
   const { data, error } = await supabase
@@ -177,13 +192,16 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
       break;
     }
     case "mrr": {
-      const value = parseInt(rest[0], 10);
-      if (isNaN(value) || value < 0) {
-        await sendTelegramMessage(chatId, "MRR deve essere un numero intero ≥ 0.");
+      const value = parseMrr(rest[0] ?? "");
+      if (value === null) {
+        await sendTelegramMessage(
+          chatId,
+          "MRR non valido. Usa un numero ≥ 0 con punto decimale (es. 4.90)."
+        );
         return;
       }
       update = { mrr: value };
-      confirmMsg = `MRR di <b>${project.name}</b> → €${value}`;
+      confirmMsg = `MRR di <b>${project.name}</b> → €${formatMrr(value)}`;
       break;
     }
     case "users": {
