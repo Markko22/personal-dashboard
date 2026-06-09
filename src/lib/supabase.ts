@@ -33,31 +33,19 @@ export function createServiceClient() {
 }
 
 export async function fetchPublicProjects(): Promise<PublicProject[]> {
-  console.log("columns:", PUBLIC_PROJECT_COLUMNS);
-
-  const supabase = createClient(getSupabaseUrl(), getAnonKey(), {
-    global: {
-      fetch: (url, init = {}) =>
-        fetch(url, {
-          ...init,
-          cache: "no-store",
-          headers: {
-            ...((init.headers as Record<string, string> | undefined) ?? {}),
-            "Cache-Control": "no-cache",
-          },
-        }),
-    },
-  });
-
-  const { data } = await supabase
+  const supabase = createPublicClient();
+  const { data, error } = await supabase
     .from("projects")
     .select(PUBLIC_PROJECT_COLUMNS)
-    .order("order_index", { ascending: true })
-    .throwOnError();
+    .order("order_index", { ascending: true });
+
+  if (error) throw error;
 
   console.log("raw roadmap from DB:", data?.[0]?.roadmap);
 
-  return data.map((row) => toPublicProject(row as Record<string, unknown>));
+  return (data ?? []).map((row) =>
+    toPublicProject(row as Record<string, unknown>)
+  );
 }
 
 export async function fetchProjectTimeline(
