@@ -145,6 +145,8 @@ const HELP_TEXT = `<b>Comandi disponibili</b>
 /update [id] goal [valore]
 /update [id] prevmrr [valore]
 /update [id] launch [YYYY-MM-DD]
+/update [id] idea [YYYY-MM-DD]
+/update [id] buildstart [YYYY-MM-DD]
 /update [id] users [valore]
 /update [id] milestone [testo]
 /update [id] notes [testo]
@@ -263,6 +265,32 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
       confirmMsg = `Launch date di <b>${project.name}</b> → ${value}`;
       break;
     }
+    case "idea": {
+      const value = parseLaunchDate(rest[0] ?? "");
+      if (!value) {
+        await sendTelegramMessage(
+          chatId,
+          "Data non valida. Usa il formato YYYY-MM-DD (es. 2024-01-15)."
+        );
+        return;
+      }
+      update = { idea_date: value };
+      confirmMsg = `Idea date di <b>${project.name}</b> → ${value}`;
+      break;
+    }
+    case "buildstart": {
+      const value = parseLaunchDate(rest[0] ?? "");
+      if (!value) {
+        await sendTelegramMessage(
+          chatId,
+          "Data non valida. Usa il formato YYYY-MM-DD (es. 2024-03-01)."
+        );
+        return;
+      }
+      update = { build_start_date: value };
+      confirmMsg = `Inizio build di <b>${project.name}</b> → ${value}`;
+      break;
+    }
     case "users": {
       const value = parseInt(rest[0], 10);
       if (isNaN(value) || value < 0) {
@@ -315,7 +343,7 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
     default:
       await sendTelegramMessage(
         chatId,
-        "Campo non riconosciuto. Usa: status, mrr, goal, prevmrr, launch, users, milestone, notes, url."
+        "Campo non riconosciuto. Usa: status, mrr, goal, prevmrr, launch, idea, buildstart, users, milestone, notes, url."
       );
       return;
   }

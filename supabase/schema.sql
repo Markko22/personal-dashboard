@@ -9,6 +9,8 @@ create table if not exists public.projects (
   mrr_goal numeric(10, 2) not null default 0,
   mrr_prev numeric(10, 2) not null default 0,
   launch_date date,
+  idea_date date,
+  build_start_date date,
   users_count integer not null default 0,
   stack text[] not null default '{}',
   url_site text,

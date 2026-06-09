@@ -20,6 +20,8 @@ export type Project = {
   mrr_goal: number;
   mrr_prev: number;
   launch_date: string | null;
+  idea_date: string | null;
+  build_start_date: string | null;
   users_count: number;
   stack: string[];
   url_site: string | null;
@@ -42,6 +44,8 @@ export type PublicProject = {
   mrr_goal: number;
   mrr_prev: number;
   launch_date: string | null;
+  idea_date: string | null;
+  build_start_date: string | null;
   users_count: number;
   stack: string[];
   url_site: string | null;
@@ -53,7 +57,7 @@ export type PublicProject = {
 };
 
 export const PUBLIC_PROJECT_COLUMNS =
-  "id, name, tagline, status, next_milestone, mrr, mrr_goal, mrr_prev, launch_date, users_count, stack, url_site, url_repo, url_substack, order_index, created_at, updated_at";
+  "id, name, tagline, status, next_milestone, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, stack, url_site, url_repo, url_substack, order_index, created_at, updated_at";
 
 /** Strip private_notes from a DB row (e.g. Realtime payload). */
 export function toPublicProject(row: Record<string, unknown>): PublicProject {
@@ -67,6 +71,8 @@ export function toPublicProject(row: Record<string, unknown>): PublicProject {
     mrr_goal: Number(row.mrr_goal) || 0,
     mrr_prev: Number(row.mrr_prev) || 0,
     launch_date: (row.launch_date as string | null) ?? null,
+    idea_date: (row.idea_date as string | null) ?? null,
+    build_start_date: (row.build_start_date as string | null) ?? null,
     users_count: (row.users_count as number) ?? 0,
     stack: (row.stack as string[]) ?? [],
     url_site: (row.url_site as string | null) ?? null,
@@ -135,6 +141,43 @@ export function daysSinceLaunch(launchDate: string | null): number | null {
 export function formatDaysLive(launchDate: string | null): string {
   const days = daysSinceLaunch(launchDate);
   if (days === null) return "—";
+  return days === 1 ? "1 giorno" : `${days} giorni`;
+}
+
+export function projectSlug(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, "-");
+}
+
+export function projectInitials(name: string): string {
+  const parts = name.split(/[\s-]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+const italianMonthFormatter = new Intl.DateTimeFormat("it-IT", {
+  month: "long",
+  year: "numeric",
+});
+
+export function formatItalianMonth(date: string | null): string {
+  if (!date) return "—";
+  const parsed = new Date(`${date}T00:00:00`);
+  return italianMonthFormatter.format(parsed);
+}
+
+export function daysBetweenDates(
+  startDate: string,
+  endDate: string
+): number {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  const diffMs = end.getTime() - start.getTime();
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+}
+
+export function formatDaysSpan(days: number): string {
   return days === 1 ? "1 giorno" : `${days} giorni`;
 }
 

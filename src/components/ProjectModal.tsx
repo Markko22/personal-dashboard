@@ -2,7 +2,10 @@
 
 import { useEffect } from "react";
 import {
+  daysBetweenDates,
   formatDaysLive,
+  formatDaysSpan,
+  formatItalianMonth,
   formatMrrDelta,
   formatMrrValue,
   mrrGoalProgress,
@@ -46,6 +49,15 @@ export default function ProjectModal({ project, onClose }: Props) {
       : mrrDelta.tone === "negative"
         ? "text-red-400"
         : "text-[var(--muted)]";
+
+  const ideaToBuildDays =
+    project.idea_date && project.build_start_date
+      ? daysBetweenDates(project.idea_date, project.build_start_date)
+      : null;
+  const buildToLaunchDays =
+    project.build_start_date && project.launch_date
+      ? daysBetweenDates(project.build_start_date, project.launch_date)
+      : null;
 
   return (
     <div
@@ -153,6 +165,48 @@ export default function ProjectModal({ project, onClose }: Props) {
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="mt-6">
+          <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+            Timeline
+          </h3>
+          <dl className="mt-3 space-y-2 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-[var(--muted-foreground)]">Idea</dt>
+              <dd className="text-right text-[var(--foreground)]">
+                {formatItalianMonth(project.idea_date)}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-[var(--muted-foreground)]">Inizio build</dt>
+              <dd className="text-right text-[var(--foreground)]">
+                {formatItalianMonth(project.build_start_date)}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-[var(--muted-foreground)]">Lancio</dt>
+              <dd className="text-right text-[var(--foreground)]">
+                {formatItalianMonth(project.launch_date)}
+              </dd>
+            </div>
+            {ideaToBuildDays !== null && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">Giorni idea→build</dt>
+                <dd className="text-right text-[var(--foreground)]">
+                  {formatDaysSpan(ideaToBuildDays)}
+                </dd>
+              </div>
+            )}
+            {buildToLaunchDays !== null && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">Giorni build→lancio</dt>
+                <dd className="text-right text-[var(--foreground)]">
+                  {formatDaysSpan(buildToLaunchDays)}
+                </dd>
+              </div>
+            )}
+          </dl>
         </div>
 
         {project.stack.length > 0 && (
