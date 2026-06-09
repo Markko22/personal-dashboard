@@ -199,9 +199,13 @@ export default function ProjectModal({ project, onClose }: Props) {
     };
   }, [project?.id]);
 
-  if (!project) return null;
+  useEffect(() => {
+    if (project) {
+      console.log("roadmap parsed:", project.roadmap);
+    }
+  }, [project?.id, project?.roadmap]);
 
-  console.log("project.roadmap", project.roadmap);
+  if (!project) return null;
 
   const mrrDelta = formatMrrDelta(project.mrr, project.mrr_prev);
   const goalProgress = mrrGoalProgress(project.mrr, project.mrr_goal);

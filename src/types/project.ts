@@ -218,18 +218,28 @@ export function formatDaysSpan(days: number): string {
   return days === 1 ? "1 giorno" : `${days} giorni`;
 }
 
-export function parseRoadmap(raw: unknown): RoadmapItem[] {
-  let data: unknown = raw;
+export function parseRoadmap(input: unknown): RoadmapItem[] {
+  console.log("parseRoadmap input:", input, typeof input);
 
-  if (typeof raw === "string") {
+  if (input == null) {
+    return [];
+  }
+
+  let data: unknown[];
+
+  if (Array.isArray(input)) {
+    data = input;
+  } else if (typeof input === "string") {
     try {
-      data = JSON.parse(raw);
+      const parsed: unknown = JSON.parse(input);
+      if (!Array.isArray(parsed)) return [];
+      data = parsed;
     } catch {
       return [];
     }
+  } else {
+    return [];
   }
-
-  if (!Array.isArray(data)) return [];
 
   return data
     .filter(
