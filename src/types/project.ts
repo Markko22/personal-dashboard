@@ -9,6 +9,40 @@ export const PROJECT_STATUSES = [
 
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
+export const TIMELINE_EVENT_TYPES = [
+  "milestone",
+  "launch",
+  "revenue",
+  "users",
+  "pivot",
+  "other",
+] as const;
+
+export type TimelineEventType = (typeof TIMELINE_EVENT_TYPES)[number];
+
+export type TimelineEvent = {
+  id: string;
+  project_id: string;
+  event_date: string;
+  title: string;
+  description: string | null;
+  type: TimelineEventType;
+  created_at: string;
+};
+
+export const ROADMAP_ITEM_STATUSES = ["todo", "in_progress", "done"] as const;
+export type RoadmapItemStatus = (typeof ROADMAP_ITEM_STATUSES)[number];
+
+export const ROADMAP_ITEM_PRIORITIES = ["low", "medium", "high"] as const;
+export type RoadmapItemPriority = (typeof ROADMAP_ITEM_PRIORITIES)[number];
+
+export type RoadmapItem = {
+  id: string;
+  title: string;
+  status: RoadmapItemStatus;
+  priority: RoadmapItemPriority;
+};
+
 /** Full row — server/admin only. Never expose private_notes to the client. */
 export type Project = {
   id: string;
@@ -28,6 +62,7 @@ export type Project = {
   url_repo: string | null;
   url_substack: string | null;
   private_notes: string | null;
+  roadmap: RoadmapItem[];
   order_index: number;
   created_at: string;
   updated_at: string;
@@ -51,13 +86,14 @@ export type PublicProject = {
   url_site: string | null;
   url_repo: string | null;
   url_substack: string | null;
+  roadmap: RoadmapItem[];
   order_index: number;
   created_at: string;
   updated_at: string;
 };
 
 export const PUBLIC_PROJECT_COLUMNS =
-  "id, name, tagline, status, next_milestone, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, stack, url_site, url_repo, url_substack, order_index, created_at, updated_at";
+  "id, name, tagline, status, next_milestone, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, stack, url_site, url_repo, url_substack, roadmap, order_index, created_at, updated_at";
 
 /** Strip private_notes from a DB row (e.g. Realtime payload). */
 export function toPublicProject(row: Record<string, unknown>): PublicProject {
@@ -78,6 +114,7 @@ export function toPublicProject(row: Record<string, unknown>): PublicProject {
     url_site: (row.url_site as string | null) ?? null,
     url_repo: (row.url_repo as string | null) ?? null,
     url_substack: (row.url_substack as string | null) ?? null,
+    roadmap: parseRoadmap(row.roadmap),
     order_index: (row.order_index as number) ?? 0,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
@@ -180,6 +217,76 @@ export function daysBetweenDates(
 export function formatDaysSpan(days: number): string {
   return days === 1 ? "1 giorno" : `${days} giorni`;
 }
+
+export function parseRoadmap(raw: unknown): RoadmapItem[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .filter(
+      (item): item is Record<string, unknown> =>
+        typeof item === "object" && item !== null
+    )
+    .map((item) => ({
+      id: String(item.id ?? ""),
+      title: String(item.title ?? ""),
+      status: ROADMAP_ITEM_STATUSES.includes(item.status as RoadmapItemStatus)
+        ? (item.status as RoadmapItemStatus)
+        : "todo",
+      priority: ROADMAP_ITEM_PRIORITIES.includes(
+        item.priority as RoadmapItemPriority
+      )
+        ? (item.priority as RoadmapItemPriority)
+        : "medium",
+    }))
+    .filter((item) => item.id && item.title);
+}
+
+const italianDateFormatter = new Intl.DateTimeFormat("it-IT", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+export function formatItalianDate(date: string | null): string {
+  if (!date) return "—";
+  return italianDateFormatter.format(new Date(`${date}T00:00:00`));
+}
+
+export const TIMELINE_DOT_COLORS: Record<TimelineEventType, string> = {
+  milestone: "bg-blue-400",
+  launch: "bg-emerald-400",
+  revenue: "bg-yellow-400",
+  users: "bg-purple-400",
+  pivot: "bg-orange-400",
+  other: "bg-zinc-400",
+};
+
+export const ROADMAP_PRIORITY_COLORS: Record<
+  RoadmapItemPriority,
+  { bg: string; text: string; border: string }
+> = {
+  high: {
+    bg: "bg-red-500/15",
+    text: "text-red-400",
+    border: "border-red-500/30",
+  },
+  medium: {
+    bg: "bg-yellow-500/15",
+    text: "text-yellow-400",
+    border: "border-yellow-500/30",
+  },
+  low: {
+    bg: "bg-zinc-500/15",
+    text: "text-zinc-400",
+    border: "border-zinc-500/30",
+  },
+};
+
+export const ROADMAP_STATUS_LABELS: Record<RoadmapItemStatus, string> = {
+  in_progress: "In corso",
+  todo: "Da fare",
+  done: "Completati",
+};
 
 export const STATUS_COLORS: Record<
   ProjectStatus,

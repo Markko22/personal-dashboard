@@ -1,8 +1,15 @@
 import { createServiceClient } from "@/lib/supabase";
 import {
   PROJECT_STATUSES,
+  ROADMAP_ITEM_PRIORITIES,
+  TIMELINE_EVENT_TYPES,
+  parseRoadmap,
   type Project,
   type ProjectStatus,
+  type RoadmapItem,
+  type RoadmapItemPriority,
+  type RoadmapItemStatus,
+  type TimelineEventType,
 } from "@/types/project";
 
 const TELEGRAM_API = "https://api.telegram.org";
@@ -151,6 +158,14 @@ const HELP_TEXT = `<b>Comandi disponibili</b>
 /update [id] milestone [testo]
 /update [id] notes [testo]
 /update [id] url [site|repo|substack] [url]
+
+/timeline [id] add [type] [YYYY-MM-DD] [titolo]
+/timeline [id] list
+
+/roadmap [id] add [priority] [titolo]
+/roadmap [id] done [item_id]
+/roadmap [id] wip [item_id]
+/roadmap [id] list
 
 /add — aggiungi nuovo progetto (wizard)
 /cancel — annulla wizard in corso
@@ -357,6 +372,266 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
   await sendTelegramMessage(chatId, `✓ ${confirmMsg}`);
 }
 
+function getProjectRoadmap(project: Project): RoadmapItem[] {
+  return parseRoadmap((project as unknown as Record<string, unknown>).roadmap);
+}
+
+function findRoadmapItemByPrefix(
+  items: RoadmapItem[],
+  prefix: string
+): RoadmapItem | null {
+  const matches = items.filter((item) =>
+    item.id.toLowerCase().startsWith(prefix.toLowerCase())
+  );
+
+  if (matches.length === 0) return null;
+  if (matches.length > 1) {
+    throw new Error(
+      `ID roadmap ambiguo "${prefix}" — corrisponde a ${matches.length} item. Usa più caratteri.`
+    );
+  }
+
+  return matches[0];
+}
+
+async function saveProjectRoadmap(
+  projectId: string,
+  roadmap: RoadmapItem[]
+): Promise<void> {
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({ roadmap })
+    .eq("id", projectId);
+
+  if (error) throw error;
+}
+
+async function handleTimeline(chatId: number, args: string[]): Promise<void> {
+  if (args.length < 2) {
+    await sendTelegramMessage(
+      chatId,
+      "Uso: /timeline [id] add [type] [YYYY-MM-DD] [titolo]\nOppure: /timeline [id] list"
+    );
+    return;
+  }
+
+  const [idPrefix, action, ...rest] = args;
+  const project = await findProjectByIdPrefix(idPrefix);
+
+  if (!project) {
+    await sendTelegramMessage(chatId, `Progetto non trovato per id "${idPrefix}".`);
+    return;
+  }
+
+  const supabase = createServiceClient();
+
+  if (action === "list") {
+    const { data, error } = await supabase
+      .from("project_timeline")
+      .select("id, event_date, title, type")
+      .eq("project_id", project.id)
+      .order("event_date", { ascending: false });
+
+    if (error) throw error;
+
+    if (!data?.length) {
+      await sendTelegramMessage(
+        chatId,
+        `Nessun evento per <b>${project.name}</b>.`
+      );
+      return;
+    }
+
+    const lines = data.map(
+      (event: { id: string; event_date: string; title: string; type: string }) =>
+        `<code>${event.id.slice(0, 8)}</code> ${event.event_date} [${event.type}] ${event.title}`
+    );
+
+    await sendTelegramMessage(
+      chatId,
+      `<b>Timeline — ${project.name}</b>\n\n${lines.join("\n")}`
+    );
+    return;
+  }
+
+  if (action === "add") {
+    const [type, dateStr, ...titleParts] = rest;
+
+    if (!type || !dateStr || titleParts.length === 0) {
+      await sendTelegramMessage(
+        chatId,
+        `Uso: /timeline [id] add [type] [YYYY-MM-DD] [titolo]\nTipi: ${TIMELINE_EVENT_TYPES.join(", ")}`
+      );
+      return;
+    }
+
+    if (!TIMELINE_EVENT_TYPES.includes(type as TimelineEventType)) {
+      await sendTelegramMessage(
+        chatId,
+        `Tipo non valido. Valori: ${TIMELINE_EVENT_TYPES.join(", ")}`
+      );
+      return;
+    }
+
+    const eventDate = parseLaunchDate(dateStr);
+    if (!eventDate) {
+      await sendTelegramMessage(
+        chatId,
+        "Data non valida. Usa il formato YYYY-MM-DD."
+      );
+      return;
+    }
+
+    const title = titleParts.join(" ").trim();
+    const { data: created, error } = await supabase
+      .from("project_timeline")
+      .insert({
+        project_id: project.id,
+        type,
+        event_date: eventDate,
+        title,
+      })
+      .select("id, title")
+      .single();
+
+    if (error) throw error;
+
+    await sendTelegramMessage(
+      chatId,
+      `✓ Evento aggiunto a <b>${project.name}</b>\n<code>${created.id.slice(0, 8)}</code> — ${created.title}`
+    );
+    return;
+  }
+
+  await sendTelegramMessage(chatId, "Azione non riconosciuta. Usa: add, list.");
+}
+
+async function handleRoadmap(chatId: number, args: string[]): Promise<void> {
+  if (args.length < 2) {
+    await sendTelegramMessage(
+      chatId,
+      "Uso: /roadmap [id] add|done|wip|list ..."
+    );
+    return;
+  }
+
+  const [idPrefix, action, ...rest] = args;
+  const project = await findProjectByIdPrefix(idPrefix);
+
+  if (!project) {
+    await sendTelegramMessage(chatId, `Progetto non trovato per id "${idPrefix}".`);
+    return;
+  }
+
+  const roadmap = getProjectRoadmap(project);
+
+  if (action === "list") {
+    if (roadmap.length === 0) {
+      await sendTelegramMessage(
+        chatId,
+        `Roadmap vuota per <b>${project.name}</b>.`
+      );
+      return;
+    }
+
+    const lines = roadmap.map(
+      (item) =>
+        `<code>${item.id.slice(0, 8)}</code> [${item.status}] ${item.priority} — ${item.title}`
+    );
+
+    await sendTelegramMessage(
+      chatId,
+      `<b>Roadmap — ${project.name}</b>\n\n${lines.join("\n")}`
+    );
+    return;
+  }
+
+  if (action === "add") {
+    const [priority, ...titleParts] = rest;
+
+    if (!priority || titleParts.length === 0) {
+      await sendTelegramMessage(
+        chatId,
+        `Uso: /roadmap [id] add [priority] [titolo]\nPriorità: ${ROADMAP_ITEM_PRIORITIES.join(", ")}`
+      );
+      return;
+    }
+
+    if (!ROADMAP_ITEM_PRIORITIES.includes(priority as RoadmapItemPriority)) {
+      await sendTelegramMessage(
+        chatId,
+        `Priorità non valida. Valori: ${ROADMAP_ITEM_PRIORITIES.join(", ")}`
+      );
+      return;
+    }
+
+    const title = titleParts.join(" ").trim();
+    const newItem: RoadmapItem = {
+      id: crypto.randomUUID(),
+      title,
+      status: "todo",
+      priority: priority as RoadmapItemPriority,
+    };
+
+    await saveProjectRoadmap(project.id, [...roadmap, newItem]);
+    await sendTelegramMessage(
+      chatId,
+      `✓ Item roadmap aggiunto a <b>${project.name}</b>\n<code>${newItem.id.slice(0, 8)}</code> — ${newItem.title}`
+    );
+    return;
+  }
+
+  if (action === "done" || action === "wip") {
+    const itemPrefix = rest[0];
+    if (!itemPrefix) {
+      await sendTelegramMessage(
+        chatId,
+        `Uso: /roadmap [id] ${action} [item_id_parziale]`
+      );
+      return;
+    }
+
+    let item: RoadmapItem | null;
+    try {
+      item = findRoadmapItemByPrefix(roadmap, itemPrefix);
+    } catch (err) {
+      await sendTelegramMessage(
+        chatId,
+        err instanceof Error ? err.message : "ID roadmap ambiguo."
+      );
+      return;
+    }
+
+    if (!item) {
+      await sendTelegramMessage(
+        chatId,
+        `Item roadmap non trovato per id "${itemPrefix}".`
+      );
+      return;
+    }
+
+    const newStatus: RoadmapItemStatus =
+      action === "done" ? "done" : "in_progress";
+
+    const updated = roadmap.map((entry) =>
+      entry.id === item!.id ? { ...entry, status: newStatus } : entry
+    );
+
+    await saveProjectRoadmap(project.id, updated);
+    await sendTelegramMessage(
+      chatId,
+      `✓ <b>${item.title}</b> → ${newStatus}`
+    );
+    return;
+  }
+
+  await sendTelegramMessage(
+    chatId,
+    "Azione non riconosciuta. Usa: add, done, wip, list."
+  );
+}
+
 async function handleAddStart(chatId: number): Promise<void> {
   await setSession(chatId, "name", {});
   await sendTelegramMessage(
@@ -505,6 +780,12 @@ export async function handleTelegramUpdate(
       break;
     case "/update":
       await handleUpdate(chatId, args);
+      break;
+    case "/timeline":
+      await handleTimeline(chatId, args);
+      break;
+    case "/roadmap":
+      await handleRoadmap(chatId, args);
       break;
     case "/add":
       await handleAddStart(chatId);

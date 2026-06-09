@@ -1,7 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import {
   PUBLIC_PROJECT_COLUMNS,
+  toPublicProject,
   type PublicProject,
+  type TimelineEvent,
 } from "@/types/project";
 
 function getSupabaseUrl() {
@@ -38,5 +40,21 @@ export async function fetchPublicProjects(): Promise<PublicProject[]> {
     .order("order_index", { ascending: true });
 
   if (error) throw error;
-  return (data ?? []) as PublicProject[];
+  return (data ?? []).map((row) =>
+    toPublicProject(row as Record<string, unknown>)
+  );
+}
+
+export async function fetchProjectTimeline(
+  projectId: string
+): Promise<TimelineEvent[]> {
+  const supabase = createPublicClient();
+  const { data, error } = await supabase
+    .from("project_timeline")
+    .select("id, project_id, event_date, title, description, type, created_at")
+    .eq("project_id", projectId)
+    .order("event_date", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as TimelineEvent[];
 }
