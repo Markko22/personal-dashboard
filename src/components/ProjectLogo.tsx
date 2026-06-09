@@ -8,6 +8,7 @@ type Props = {
   variant?: "card" | "default";
 };
 
+/** Native <img> only — no next/image, so onError fires reliably. */
 export default function ProjectLogo({ name, variant = "default" }: Props) {
   const slug = projectSlug(name);
   const src = `/projects/${slug}.png`;
@@ -24,20 +25,30 @@ export default function ProjectLogo({ name, variant = "default" }: Props) {
 
   const initials = projectInitials(name);
 
+  if (imgError) {
+    return (
+      <div
+        className={`flex items-center justify-center font-semibold text-[var(--muted-foreground)] ${containerClass}`}
+      >
+        {initials}
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={`flex items-center justify-center font-semibold text-[var(--muted-foreground)] ${containerClass}`}
-    >
-      {!imgError ? (
-        <img
-          src={src}
-          alt=""
-          className="h-full w-full object-contain p-1"
-          onError={() => setImgError(true)}
-        />
-      ) : (
-        initials
-      )}
+    <div className={containerClass}>
+      <img
+        key={src}
+        src={src}
+        alt=""
+        className="h-full w-full object-contain p-1"
+        onError={() => setImgError(true)}
+        onLoad={(e) => {
+          if (e.currentTarget.naturalWidth === 0) {
+            setImgError(true);
+          }
+        }}
+      />
     </div>
   );
 }
