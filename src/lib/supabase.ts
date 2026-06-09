@@ -40,6 +40,9 @@ export async function fetchPublicProjects(): Promise<PublicProject[]> {
     .order("order_index", { ascending: true });
 
   if (error) throw error;
+
+  console.log("raw roadmap from DB:", data?.[0]?.roadmap);
+
   return (data ?? []).map((row) =>
     toPublicProject(row as Record<string, unknown>)
   );
