@@ -5,29 +5,22 @@ import { projectInitials, projectSlug } from "@/types/project";
 
 type Props = {
   name: string;
-  size?: "sm" | "md" | "lg";
-  rounded?: "full" | "lg";
+  variant?: "card" | "default";
 };
 
-export default function ProjectLogo({
-  name,
-  size = "sm",
-  rounded = "full",
-}: Props) {
+export default function ProjectLogo({ name, variant = "default" }: Props) {
   const [failed, setFailed] = useState(false);
   const slug = projectSlug(name);
-  const sizeClass =
-    size === "lg"
-      ? "h-10 w-10 text-xs"
-      : size === "md"
-        ? "h-9 w-9 text-[11px]"
-        : "h-8 w-8 text-[10px]";
-  const roundedClass = rounded === "lg" ? "rounded-lg" : "rounded-full";
+
+  const containerClass =
+    variant === "card"
+      ? "h-[40px] w-[40px] shrink-0 overflow-hidden rounded-lg bg-gray-800 text-[10px]"
+      : "h-8 w-8 shrink-0 overflow-hidden rounded-full bg-[var(--background)] text-[10px] ring-1 ring-[var(--border)]";
 
   if (failed) {
     return (
       <div
-        className={`flex shrink-0 items-center justify-center bg-[var(--background)] font-semibold text-[var(--muted-foreground)] ring-1 ring-[var(--border)] ${sizeClass} ${roundedClass}`}
+        className={`flex items-center justify-center font-semibold text-[var(--muted-foreground)] ${containerClass}`}
       >
         {projectInitials(name)}
       </div>
@@ -35,11 +28,13 @@ export default function ProjectLogo({
   }
 
   return (
-    <img
-      src={`/projects/${slug}.png`}
-      alt={name}
-      className={`shrink-0 object-cover ring-1 ring-[var(--border)] ${sizeClass} ${roundedClass}`}
-      onError={() => setFailed(true)}
-    />
+    <div className={containerClass}>
+      <img
+        src={`/projects/${slug}.png`}
+        alt=""
+        className="h-full w-full object-contain p-1"
+        onError={() => setFailed(true)}
+      />
+    </div>
   );
 }

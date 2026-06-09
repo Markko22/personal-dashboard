@@ -14,13 +14,13 @@ export default function ProjectCard({ project, onClick }: Props) {
     <button
       type="button"
       onClick={onClick}
-      className="group relative flex aspect-[4/3] min-h-[180px] max-h-[220px] w-full flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 text-left transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--card-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+      className="group flex h-[200px] w-[280px] shrink-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 text-left transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--card-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
     >
       <div className="flex items-start justify-between gap-2">
         <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
           Progetto
         </span>
-        <ProjectLogo name={project.name} size="lg" rounded="lg" />
+        <ProjectLogo name={project.name} variant="card" />
       </div>
 
       <div className="mt-auto flex items-end justify-between gap-3 pt-3">

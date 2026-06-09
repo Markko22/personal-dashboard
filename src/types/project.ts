@@ -219,9 +219,19 @@ export function formatDaysSpan(days: number): string {
 }
 
 export function parseRoadmap(raw: unknown): RoadmapItem[] {
-  if (!Array.isArray(raw)) return [];
+  let data: unknown = raw;
 
-  return raw
+  if (typeof raw === "string") {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(data)) return [];
+
+  return data
     .filter(
       (item): item is Record<string, unknown> =>
         typeof item === "object" && item !== null

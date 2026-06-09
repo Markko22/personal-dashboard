@@ -123,29 +123,32 @@ function StoriaSection({
     );
   }
 
+  const sorted = [...events].sort(
+    (a, b) =>
+      new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
+  );
+
   return (
-    <div className="relative mt-4 ml-1.5 border-l border-[var(--border)] pl-6">
-      {events.map((event, index) => (
-        <div
-          key={event.id}
-          className={`relative ${index < events.length - 1 ? "pb-6" : ""}`}
-        >
-          <span
-            className={`absolute -left-[1.65rem] top-1 h-3 w-3 rounded-full ring-2 ring-[var(--card)] ${TIMELINE_DOT_COLORS[event.type]}`}
-          />
-          <p className="text-xs text-[var(--muted)]">
-            {formatItalianDate(event.event_date)}
-          </p>
-          <p className="mt-0.5 text-sm font-medium text-[var(--foreground)]">
-            {event.title}
-          </p>
-          {event.description && (
-            <p className="mt-1 text-xs leading-relaxed text-[var(--muted-foreground)]">
-              {event.description}
+    <div className="mt-3 h-[100px] overflow-x-auto pb-2">
+      <div className="relative flex min-w-max items-start gap-6 px-1 pt-1">
+        <div className="absolute left-0 right-0 top-[34px] h-px bg-[var(--border)]" />
+        {sorted.map((event) => (
+          <div
+            key={event.id}
+            className="relative flex w-[100px] shrink-0 flex-col items-center text-center"
+          >
+            <p className="mb-1 whitespace-nowrap text-[10px] text-[var(--muted)]">
+              {formatItalianDate(event.event_date)}
             </p>
-          )}
-        </div>
-      ))}
+            <span
+              className={`relative z-10 h-3 w-3 shrink-0 rounded-full ring-2 ring-[var(--card)] ${TIMELINE_DOT_COLORS[event.type]}`}
+            />
+            <p className="mt-2 line-clamp-2 text-xs font-medium leading-tight text-[var(--foreground)]">
+              {event.title}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -197,6 +200,8 @@ export default function ProjectModal({ project, onClose }: Props) {
   }, [project?.id]);
 
   if (!project) return null;
+
+  console.log("project.roadmap", project.roadmap);
 
   const mrrDelta = formatMrrDelta(project.mrr, project.mrr_prev);
   const goalProgress = mrrGoalProgress(project.mrr, project.mrr_goal);
