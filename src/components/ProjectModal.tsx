@@ -50,6 +50,12 @@ function RoadmapStatusIcon({ status }: { status: RoadmapItemStatus }) {
   );
 }
 
+const ROADMAP_STATUS_BORDER: Record<RoadmapItemStatus, string> = {
+  todo: "border-zinc-500/40",
+  in_progress: "border-amber-500/40",
+  done: "border-emerald-500/40",
+};
+
 function RoadmapSection({ items }: { items: RoadmapItem[] }) {
   const groups: RoadmapItemStatus[] = ["in_progress", "todo", "done"];
 
@@ -60,7 +66,7 @@ function RoadmapSection({ items }: { items: RoadmapItem[] }) {
   }
 
   return (
-    <div className="mt-3 space-y-5">
+    <div className="mt-3 space-y-4">
       {groups.map((status) => {
         const groupItems = items.filter((item) => item.status === status);
         if (groupItems.length === 0) return null;
@@ -70,33 +76,33 @@ function RoadmapSection({ items }: { items: RoadmapItem[] }) {
             <h4 className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
               {ROADMAP_STATUS_LABELS[status]}
             </h4>
-            <ul className="mt-2 space-y-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               {groupItems.map((item) => {
                 const priority = ROADMAP_PRIORITY_COLORS[item.priority];
                 return (
-                  <li
+                  <span
                     key={item.id}
-                    className="flex items-center gap-2.5 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                    className={`inline-flex items-center gap-1.5 rounded-full border bg-[var(--background)] px-3 py-1 text-sm ${ROADMAP_STATUS_BORDER[status]}`}
                   >
                     <RoadmapStatusIcon status={item.status} />
                     <span
-                      className={`flex-1 text-sm ${
+                      className={
                         item.status === "done"
                           ? "text-[var(--muted)] line-through"
                           : "text-[var(--foreground)]"
-                      }`}
+                      }
                     >
                       {item.title}
                     </span>
                     <span
-                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase ${priority.bg} ${priority.text} ${priority.border}`}
+                      className={`rounded-full border px-1.5 py-px text-[9px] font-medium uppercase leading-none ${priority.bg} ${priority.text} ${priority.border}`}
                     >
                       {item.priority}
                     </span>
-                  </li>
+                  </span>
                 );
               })}
-            </ul>
+            </div>
           </div>
         );
       })}

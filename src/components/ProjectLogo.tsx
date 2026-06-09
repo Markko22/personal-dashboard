@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { projectInitials, projectSlug } from "@/types/project";
 
 type Props = {
@@ -13,8 +13,12 @@ export default function ProjectLogo({ name, variant = "default" }: Props) {
   const slug = projectSlug(name);
   const src = `/projects/${slug}.png`;
   const [imgError, setImgError] = useState(false);
+  const mountTimeRef = useRef(0);
+  const errorHandledRef = useRef(false);
 
   useEffect(() => {
+    mountTimeRef.current = Date.now();
+    errorHandledRef.current = false;
     setImgError(false);
   }, [src]);
 
@@ -24,6 +28,17 @@ export default function ProjectLogo({ name, variant = "default" }: Props) {
       : "h-8 w-8 shrink-0 overflow-hidden rounded-full bg-[var(--background)] text-[10px] ring-1 ring-[var(--border)]";
 
   const initials = projectInitials(name);
+
+  const triggerFallback = () => {
+    if (errorHandledRef.current) return;
+    errorHandledRef.current = true;
+    setImgError(true);
+  };
+
+  const handleError = () => {
+    // Local missing assets fail within ~100ms of mountTimeRef — ref prevents retry
+    triggerFallback();
+  };
 
   if (imgError) {
     return (
@@ -38,14 +53,13 @@ export default function ProjectLogo({ name, variant = "default" }: Props) {
   return (
     <div className={containerClass}>
       <img
-        key={src}
         src={src}
         alt=""
         className="h-full w-full object-contain p-1"
-        onError={() => setImgError(true)}
+        onError={handleError}
         onLoad={(e) => {
           if (e.currentTarget.naturalWidth === 0) {
-            setImgError(true);
+            triggerFallback();
           }
         }}
       />
