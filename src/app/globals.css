@@ -3,8 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #0f1623;
+  --foreground: #e8edf4;
+  --card: #161f30;
+  --card-hover: #1a2538;
+  --muted: #5a6d85;
+  --muted-foreground: #8b9cb3;
+  --border: #1e2d42;
+  --border-hover: #2a3f5c;
+  --ring: #3d5a80;
 }
 
 body {

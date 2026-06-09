@@ -1,45 +1,46 @@
 "use client";
 
-import {
-  STATUS_COLORS,
-  STATUS_LABELS,
-  type PublicProject,
-} from "@/types/project";
+import type { PublicProject } from "@/types/project";
+import StatusBadge from "./StatusBadge";
 
 type Props = {
   project: PublicProject;
   onClick: () => void;
 };
 
-export default function ProjectCard({ project, onClick }: Props) {
-  const colors = STATUS_COLORS[project.status];
+function formatDisplayUrl(url: string) {
+  return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+}
 
+export default function ProjectCard({ project, onClick }: Props) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group w-full text-left rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 transition-colors hover:border-zinc-600 hover:bg-zinc-900/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500"
+      className="group flex min-h-[200px] w-full flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5 text-left transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--card-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
     >
-      <div className="flex items-start justify-between gap-4">
-        <h2 className="text-lg font-medium text-zinc-100 group-hover:text-white">
-          {project.name}
-        </h2>
-        <span
-          className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium ${colors.bg} ${colors.text} ${colors.border}`}
-        >
-          {STATUS_LABELS[project.status]}
-        </span>
-      </div>
+      <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+        Progetto
+      </span>
 
-      <p className="mt-2 text-sm text-zinc-500 leading-relaxed">
+      <h2 className="mt-2 text-xl font-bold text-[var(--foreground)] group-hover:text-white">
+        {project.name}
+      </h2>
+
+      <p className="mt-2 flex-1 text-sm leading-relaxed text-[var(--muted-foreground)]">
         {project.tagline}
       </p>
 
-      {project.url_site && (
-        <p className="mt-4 text-xs text-zinc-600 group-hover:text-zinc-400 transition-colors truncate">
-          {project.url_site.replace(/^https?:\/\//, "")}
-        </p>
-      )}
+      <div className="mt-5 flex items-end justify-between gap-3">
+        {project.url_site ? (
+          <span className="truncate text-xs text-[var(--muted)] transition-colors group-hover:text-[var(--muted-foreground)]">
+            {formatDisplayUrl(project.url_site)}
+          </span>
+        ) : (
+          <span />
+        )}
+        <StatusBadge status={project.status} />
+      </div>
     </button>
   );
 }

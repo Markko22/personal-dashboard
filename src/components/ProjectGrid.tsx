@@ -61,7 +61,7 @@ export default function ProjectGrid({ initialProjects }: Props) {
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {projects.map((project) => (
           <ProjectCard
             key={project.id}
@@ -72,7 +72,9 @@ export default function ProjectGrid({ initialProjects }: Props) {
       </div>
 
       {projects.length === 0 && (
-        <p className="text-center text-zinc-600 py-16">Nessun progetto ancora.</p>
+        <p className="py-16 text-center text-[var(--muted)]">
+          Nessun progetto ancora.
+        </p>
       )}
 
       <ProjectModal project={selected} onClose={() => setSelected(null)} />

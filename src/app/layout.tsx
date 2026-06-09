@@ -9,8 +9,9 @@ const geistSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Marco — Progetti",
-  description: "Dashboard personale dei miei progetti digitali",
+  title: "Marco Pontello — Progetti",
+  description:
+    "Dashboard personale dei miei prodotti digitali. Non-tech founder, zero CS background.",
 };
 
 export default function RootLayout({
@@ -20,7 +21,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="it" className="dark">
-      <body className={`${geistSans.variable} antialiased font-sans`}>
+      <body
+        className={`${geistSans.variable} min-h-screen bg-[var(--background)] font-sans text-[var(--foreground)] antialiased`}
+      >
         {children}
       </body>
     </html>

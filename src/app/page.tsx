@@ -1,4 +1,5 @@
 import ProjectGrid from "@/components/ProjectGrid";
+import Sidebar from "@/components/Sidebar";
 import { fetchPublicProjects } from "@/lib/supabase";
 import type { PublicProject } from "@/types/project";
 
@@ -13,19 +14,24 @@ export default async function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a]">
-      <div className="mx-auto max-w-3xl px-6 py-16 md:py-24">
-        <header className="mb-12">
-          <h1 className="text-2xl font-medium text-zinc-100 tracking-tight">
-            Progetti
-          </h1>
-          <p className="mt-2 text-sm text-zinc-500">
-            Stato dei miei prodotti digitali
-          </p>
-        </header>
+    <div className="min-h-screen bg-[var(--background)]">
+      <Sidebar />
 
-        <ProjectGrid initialProjects={projects} />
-      </div>
-    </main>
+      <main className="lg:ml-[260px]">
+        <div className="px-6 py-10 lg:px-12 lg:py-14">
+          <header className="mb-10">
+            <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
+              PROGETTI
+              <span className="font-normal text-[var(--muted-foreground)]">
+                {" "}
+                / Stato dei miei prodotti digitali
+              </span>
+            </h2>
+          </header>
+
+          <ProjectGrid initialProjects={projects} />
+        </div>
+      </main>
+    </div>
   );
 }
