@@ -17,6 +17,9 @@ export type Project = {
   status: ProjectStatus;
   next_milestone: string | null;
   mrr: number;
+  mrr_goal: number;
+  mrr_prev: number;
+  launch_date: string | null;
   users_count: number;
   stack: string[];
   url_site: string | null;
@@ -36,6 +39,9 @@ export type PublicProject = {
   status: ProjectStatus;
   next_milestone: string | null;
   mrr: number;
+  mrr_goal: number;
+  mrr_prev: number;
+  launch_date: string | null;
   users_count: number;
   stack: string[];
   url_site: string | null;
@@ -47,7 +53,7 @@ export type PublicProject = {
 };
 
 export const PUBLIC_PROJECT_COLUMNS =
-  "id, name, tagline, status, next_milestone, mrr, users_count, stack, url_site, url_repo, url_substack, order_index, created_at, updated_at";
+  "id, name, tagline, status, next_milestone, mrr, mrr_goal, mrr_prev, launch_date, users_count, stack, url_site, url_repo, url_substack, order_index, created_at, updated_at";
 
 /** Strip private_notes from a DB row (e.g. Realtime payload). */
 export function toPublicProject(row: Record<string, unknown>): PublicProject {
@@ -58,6 +64,9 @@ export function toPublicProject(row: Record<string, unknown>): PublicProject {
     status: row.status as ProjectStatus,
     next_milestone: (row.next_milestone as string | null) ?? null,
     mrr: Number(row.mrr) || 0,
+    mrr_goal: Number(row.mrr_goal) || 0,
+    mrr_prev: Number(row.mrr_prev) || 0,
+    launch_date: (row.launch_date as string | null) ?? null,
     users_count: (row.users_count as number) ?? 0,
     stack: (row.stack as string[]) ?? [],
     url_site: (row.url_site as string | null) ?? null,
@@ -78,14 +87,55 @@ export const STATUS_LABELS: Record<ProjectStatus, string> = {
   archived: "Archived",
 };
 
+const eurFormatter = new Intl.NumberFormat("it-IT", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 export function formatMrr(mrr: number): string {
   if (mrr <= 0) return "—";
-  return new Intl.NumberFormat("it-IT", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(mrr);
+  return eurFormatter.format(mrr);
+}
+
+export function formatMrrValue(mrr: number): string {
+  return eurFormatter.format(mrr);
+}
+
+export function formatMrrDelta(mrr: number, mrrPrev: number): {
+  text: string;
+  tone: "positive" | "negative" | "neutral";
+} {
+  const delta = Math.round((mrr - mrrPrev) * 100) / 100;
+  if (delta === 0) {
+    return { text: eurFormatter.format(0), tone: "neutral" };
+  }
+  const sign = delta > 0 ? "+" : "";
+  return {
+    text: `${sign}${eurFormatter.format(delta)}`,
+    tone: delta > 0 ? "positive" : "negative",
+  };
+}
+
+export function mrrGoalProgress(mrr: number, mrrGoal: number): number {
+  if (mrrGoal <= 0) return 0;
+  return Math.min(100, Math.round((mrr / mrrGoal) * 100));
+}
+
+export function daysSinceLaunch(launchDate: string | null): number | null {
+  if (!launchDate) return null;
+  const launch = new Date(`${launchDate}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffMs = today.getTime() - launch.getTime();
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+}
+
+export function formatDaysLive(launchDate: string | null): string {
+  const days = daysSinceLaunch(launchDate);
+  if (days === null) return "—";
+  return days === 1 ? "1 giorno" : `${days} giorni`;
 }
 
 export const STATUS_COLORS: Record<

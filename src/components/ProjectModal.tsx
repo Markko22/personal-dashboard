@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import { formatMrr, type PublicProject } from "@/types/project";
+import {
+  formatDaysLive,
+  formatMrrDelta,
+  formatMrrValue,
+  mrrGoalProgress,
+  type PublicProject,
+} from "@/types/project";
 import StatusBadge from "./StatusBadge";
 
 type Props = {
@@ -31,6 +37,15 @@ export default function ProjectModal({ project, onClose }: Props) {
   }, [project, onClose]);
 
   if (!project) return null;
+
+  const mrrDelta = formatMrrDelta(project.mrr, project.mrr_prev);
+  const goalProgress = mrrGoalProgress(project.mrr, project.mrr_goal);
+  const deltaToneClass =
+    mrrDelta.tone === "positive"
+      ? "text-emerald-400"
+      : mrrDelta.tone === "negative"
+        ? "text-red-400"
+        : "text-[var(--muted)]";
 
   return (
     <div
@@ -85,22 +100,58 @@ export default function ProjectModal({ project, onClose }: Props) {
           </div>
         )}
 
-        <div className="mt-6 grid grid-cols-2 gap-4">
-          <div>
-            <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-              MRR
-            </h3>
-            <p className="mt-1.5 text-sm text-[var(--foreground)]">
-              {formatMrr(project.mrr)}
-            </p>
+        <div className="mt-6 space-y-5">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+                MRR attuale
+              </h3>
+              <p className="mt-1.5 text-sm text-[var(--foreground)]">
+                {formatMrrValue(project.mrr)}
+              </p>
+            </div>
+            <div>
+              <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+                vs mese scorso
+              </h3>
+              <p className={`mt-1.5 text-sm ${deltaToneClass}`}>
+                {mrrDelta.text}
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-              Utenti
-            </h3>
-            <p className="mt-1.5 text-sm text-[var(--foreground)]">
-              {project.users_count > 0 ? project.users_count : "—"}
-            </p>
+
+          {project.mrr_goal > 0 && (
+            <div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--background)]">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${goalProgress}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                {formatMrrValue(project.mrr)} di {formatMrrValue(project.mrr_goal)}{" "}
+                obiettivo ({goalProgress}%)
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+                Utenti
+              </h3>
+              <p className="mt-1.5 text-sm text-[var(--foreground)]">
+                {project.users_count > 0 ? project.users_count : "—"}
+              </p>
+            </div>
+            <div>
+              <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+                Live da
+              </h3>
+              <p className="mt-1.5 text-sm text-[var(--foreground)]">
+                {formatDaysLive(project.launch_date)}
+              </p>
+            </div>
           </div>
         </div>
 

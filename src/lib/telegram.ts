@@ -63,6 +63,23 @@ function formatMrr(value: number): string {
   return value.toFixed(2);
 }
 
+function parseLaunchDate(raw: string): string | null {
+  const value = raw.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return value;
+}
+
 async function findProjectByIdPrefix(prefix: string): Promise<Project | null> {
   const supabase = createServiceClient();
   const { data, error } = await supabase
@@ -125,6 +142,9 @@ const HELP_TEXT = `<b>Comandi disponibili</b>
 
 /update [id] status [valore]
 /update [id] mrr [valore]
+/update [id] goal [valore]
+/update [id] prevmrr [valore]
+/update [id] launch [YYYY-MM-DD]
 /update [id] users [valore]
 /update [id] milestone [testo]
 /update [id] notes [testo]
@@ -204,6 +224,45 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
       confirmMsg = `MRR di <b>${project.name}</b> → €${formatMrr(value)}`;
       break;
     }
+    case "goal": {
+      const value = parseMrr(rest[0] ?? "");
+      if (value === null) {
+        await sendTelegramMessage(
+          chatId,
+          "Obiettivo MRR non valido. Usa un numero ≥ 0 con punto decimale (es. 500)."
+        );
+        return;
+      }
+      update = { mrr_goal: value };
+      confirmMsg = `Obiettivo MRR di <b>${project.name}</b> → €${formatMrr(value)}`;
+      break;
+    }
+    case "prevmrr": {
+      const value = parseMrr(rest[0] ?? "");
+      if (value === null) {
+        await sendTelegramMessage(
+          chatId,
+          "MRR precedente non valido. Usa un numero ≥ 0 con punto decimale (es. 4.90)."
+        );
+        return;
+      }
+      update = { mrr_prev: value };
+      confirmMsg = `MRR mese scorso di <b>${project.name}</b> → €${formatMrr(value)}`;
+      break;
+    }
+    case "launch": {
+      const value = parseLaunchDate(rest[0] ?? "");
+      if (!value) {
+        await sendTelegramMessage(
+          chatId,
+          "Data non valida. Usa il formato YYYY-MM-DD (es. 2024-09-01)."
+        );
+        return;
+      }
+      update = { launch_date: value };
+      confirmMsg = `Launch date di <b>${project.name}</b> → ${value}`;
+      break;
+    }
     case "users": {
       const value = parseInt(rest[0], 10);
       if (isNaN(value) || value < 0) {
@@ -256,7 +315,7 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
     default:
       await sendTelegramMessage(
         chatId,
-        "Campo non riconosciuto. Usa: status, mrr, users, milestone, notes, url."
+        "Campo non riconosciuto. Usa: status, mrr, goal, prevmrr, launch, users, milestone, notes, url."
       );
       return;
   }
