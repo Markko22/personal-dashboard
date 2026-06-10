@@ -13,7 +13,9 @@ import {
   formatItalianMonth,
   formatMrrDelta,
   formatMrrValue,
+  isPrivateProject,
   mrrGoalProgress,
+  type PrivateProject,
   type PublicProject,
   type RoadmapItem,
   type RoadmapItemStatus,
@@ -21,8 +23,11 @@ import {
 } from "@/types/project";
 import StatusBadge from "./StatusBadge";
 
+type ProjectItem = PublicProject | PrivateProject;
+
 type Props = {
-  project: PublicProject | null;
+  project: ProjectItem | null;
+  privateView?: boolean;
   onClose: () => void;
 };
 
@@ -159,7 +164,11 @@ function StoriaSection({
   );
 }
 
-export default function ProjectModal({ project, onClose }: Props) {
+export default function ProjectModal({
+  project,
+  privateView = false,
+  onClose,
+}: Props) {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
 
@@ -212,6 +221,11 @@ export default function ProjectModal({ project, onClose }: Props) {
   }, [project?.id, project?.roadmap]);
 
   if (!project) return null;
+
+  const showPrivateDetails =
+    privateView && isPrivateProject(project) && project.is_private;
+  const privateNotes =
+    privateView && isPrivateProject(project) ? project.private_notes : null;
 
   const mrrDelta = formatMrrDelta(project.mrr, project.mrr_prev);
   const goalProgress = mrrGoalProgress(project.mrr, project.mrr_goal);
@@ -268,11 +282,27 @@ export default function ProjectModal({ project, onClose }: Props) {
               {project.name}
             </h2>
             <StatusBadge status={project.status} />
+            {showPrivateDetails && (
+              <span className="shrink-0 rounded-full border border-zinc-500/30 bg-zinc-500/15 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
+                Privato
+              </span>
+            )}
           </div>
 
           <p className="mt-2 text-sm text-[var(--muted-foreground)]">
             {project.tagline}
           </p>
+
+          {privateView && isPrivateProject(project) && (
+            <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
+              <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+                Note private
+              </h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-[var(--foreground)]">
+                {privateNotes || "—"}
+              </p>
+            </div>
+          )}
 
           {project.next_milestone && (
             <div className="mt-6">

@@ -17,6 +17,7 @@ create table if not exists public.projects (
   url_repo text,
   url_substack text,
   private_notes text,
+  is_private boolean not null default false,
   roadmap jsonb not null default '[]',
   order_index integer not null default 0,
   created_at timestamptz not null default now(),

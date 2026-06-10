@@ -62,13 +62,17 @@ export type Project = {
   url_repo: string | null;
   url_substack: string | null;
   private_notes: string | null;
+  is_private: boolean;
   roadmap: RoadmapItem[];
   order_index: number;
   created_at: string;
   updated_at: string;
 };
 
-/** Safe subset for frontend — no private_notes field at all. */
+/** Full project row for authenticated private view (service role). */
+export type PrivateProject = Project;
+
+/** Safe subset for frontend — no private_notes or is_private. */
 export type PublicProject = {
   id: string;
   name: string;
@@ -95,7 +99,9 @@ export type PublicProject = {
 export const PUBLIC_PROJECT_COLUMNS =
   "id, name, tagline, status, next_milestone, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, stack, url_site, url_repo, url_substack, roadmap, order_index, created_at, updated_at";
 
-/** Strip private_notes from a DB row (e.g. Realtime payload). */
+export const PRIVATE_PROJECT_COLUMNS = `${PUBLIC_PROJECT_COLUMNS}, private_notes, is_private`;
+
+/** Strip private_notes and is_private from a DB row (e.g. Realtime payload). */
 export function toPublicProject(row: Record<string, unknown>): PublicProject {
   return {
     id: row.id as string,
@@ -119,6 +125,20 @@ export function toPublicProject(row: Record<string, unknown>): PublicProject {
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
   };
+}
+
+export function toPrivateProject(row: Record<string, unknown>): PrivateProject {
+  return {
+    ...toPublicProject(row),
+    private_notes: (row.private_notes as string | null) ?? null,
+    is_private: Boolean(row.is_private),
+  };
+}
+
+export function isPrivateProject(
+  project: PublicProject | PrivateProject
+): project is PrivateProject {
+  return "is_private" in project;
 }
 
 export const STATUS_LABELS: Record<ProjectStatus, string> = {

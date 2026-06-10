@@ -1,15 +1,27 @@
 "use client";
 
-import type { PublicProject } from "@/types/project";
+import {
+  isPrivateProject,
+  type PrivateProject,
+  type PublicProject,
+} from "@/types/project";
 import ProjectLogo from "./ProjectLogo";
 import StatusBadge from "./StatusBadge";
 
 type Props = {
-  project: PublicProject;
+  project: PublicProject | PrivateProject;
+  showPrivateBadge?: boolean;
   onClick: () => void;
 };
 
-export default function ProjectCard({ project, onClick }: Props) {
+export default function ProjectCard({
+  project,
+  showPrivateBadge = false,
+  onClick,
+}: Props) {
+  const isPrivate =
+    showPrivateBadge && isPrivateProject(project) && project.is_private;
+
   return (
     <button
       type="button"
@@ -17,9 +29,16 @@ export default function ProjectCard({ project, onClick }: Props) {
       className="group flex h-[200px] w-[280px] shrink-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 text-left transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--card-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-          Progetto
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+            Progetto
+          </span>
+          {isPrivate && (
+            <span className="rounded-full border border-zinc-500/30 bg-zinc-500/15 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide text-zinc-400">
+              Privato
+            </span>
+          )}
+        </div>
         <ProjectLogo name={project.name} variant="card" />
       </div>
 

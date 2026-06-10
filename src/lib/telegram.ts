@@ -157,7 +157,11 @@ const HELP_TEXT = `<b>Comandi disponibili</b>
 /update [id] users [valore]
 /update [id] milestone [testo]
 /update [id] notes [testo]
+/update [id] private true|false
 /update [id] url [site|repo|substack] [url]
+
+/delete [id] — elimina progetto (richiede /confirm)
+/confirm [id] — conferma eliminazione
 
 /timeline [id] add [type] [YYYY-MM-DD] [titolo]
 /timeline [id] list
@@ -335,6 +339,19 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
       confirmMsg = `Note private di <b>${project.name}</b> aggiornate.`;
       break;
     }
+    case "private": {
+      const value = rest[0]?.toLowerCase();
+      if (value !== "true" && value !== "false") {
+        await sendTelegramMessage(
+          chatId,
+          "Uso: /update [id] private true|false"
+        );
+        return;
+      }
+      update = { is_private: value === "true" };
+      confirmMsg = `Visibilità di <b>${project.name}</b> → ${value === "true" ? "privato" : "pubblico"}`;
+      break;
+    }
     case "url": {
       const urlField = rest[0];
       const url = rest.slice(1).join(" ").trim();
@@ -358,7 +375,7 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
     default:
       await sendTelegramMessage(
         chatId,
-        "Campo non riconosciuto. Usa: status, mrr, goal, prevmrr, launch, idea, buildstart, users, milestone, notes, url."
+        "Campo non riconosciuto. Usa: status, mrr, goal, prevmrr, launch, idea, buildstart, users, milestone, notes, private, url."
       );
       return;
   }
@@ -632,6 +649,53 @@ async function handleRoadmap(chatId: number, args: string[]): Promise<void> {
   );
 }
 
+async function handleDelete(chatId: number, args: string[]): Promise<void> {
+  const [idPrefix] = args;
+
+  if (!idPrefix) {
+    await sendTelegramMessage(chatId, "Uso: /delete [id]");
+    return;
+  }
+
+  const project = await findProjectByIdPrefix(idPrefix);
+
+  if (!project) {
+    await sendTelegramMessage(chatId, `Progetto non trovato per id "${idPrefix}".`);
+    return;
+  }
+
+  await sendTelegramMessage(
+    chatId,
+    `Sei sicuro di eliminare <b>${project.name}</b>?\nRispondi <code>/confirm ${project.id.slice(0, 8)}</code>`
+  );
+}
+
+async function handleConfirm(chatId: number, args: string[]): Promise<void> {
+  const [idPrefix] = args;
+
+  if (!idPrefix) {
+    await sendTelegramMessage(chatId, "Uso: /confirm [id]");
+    return;
+  }
+
+  const project = await findProjectByIdPrefix(idPrefix);
+
+  if (!project) {
+    await sendTelegramMessage(chatId, `Progetto non trovato per id "${idPrefix}".`);
+    return;
+  }
+
+  const supabase = createServiceClient();
+  const { error } = await supabase.from("projects").delete().eq("id", project.id);
+
+  if (error) throw error;
+
+  await sendTelegramMessage(
+    chatId,
+    `✓ Progetto <b>${project.name}</b> eliminato.`
+  );
+}
+
 async function handleAddStart(chatId: number): Promise<void> {
   await setSession(chatId, "name", {});
   await sendTelegramMessage(
@@ -789,6 +853,12 @@ export async function handleTelegramUpdate(
       break;
     case "/add":
       await handleAddStart(chatId);
+      break;
+    case "/delete":
+      await handleDelete(chatId, args);
+      break;
+    case "/confirm":
+      await handleConfirm(chatId, args);
       break;
     case "/cancel":
       if (session) {

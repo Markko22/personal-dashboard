@@ -1,7 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import {
+  PRIVATE_PROJECT_COLUMNS,
   PUBLIC_PROJECT_COLUMNS,
+  toPrivateProject,
   toPublicProject,
+  type PrivateProject,
   type PublicProject,
   type TimelineEvent,
 } from "@/types/project";
@@ -37,6 +40,7 @@ export async function fetchPublicProjects(): Promise<PublicProject[]> {
   const { data, error } = await supabase
     .from("projects")
     .select(PUBLIC_PROJECT_COLUMNS)
+    .eq("is_private", false)
     .order("order_index", { ascending: true });
 
   if (error) throw error;
@@ -45,6 +49,20 @@ export async function fetchPublicProjects(): Promise<PublicProject[]> {
 
   return (data ?? []).map((row) =>
     toPublicProject(row as Record<string, unknown>)
+  );
+}
+
+export async function fetchAllProjects(): Promise<PrivateProject[]> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("projects")
+    .select(PRIVATE_PROJECT_COLUMNS)
+    .order("order_index", { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) =>
+    toPrivateProject(row as Record<string, unknown>)
   );
 }
 
