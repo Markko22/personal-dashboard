@@ -5,6 +5,7 @@ import { fetchAllProjects } from "@/lib/supabase";
 import type { PrivateProject } from "@/types/project";
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 
 type Props = {
   params: { token: string };

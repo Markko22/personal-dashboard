@@ -11,7 +11,7 @@ type Props = {
 /** Native <img> only — no next/image, so onError fires reliably. */
 export default function ProjectLogo({ name, variant = "default" }: Props) {
   const slug = projectSlug(name);
-  const src = `/projects/${slug}.png`;
+  const src = `/projects/${slug}.png?v=1`;
   const [imgError, setImgError] = useState(false);
   const mountTimeRef = useRef(0);
   const errorHandledRef = useRef(false);
