@@ -11,6 +11,7 @@ import {
   formatDaysSpan,
   formatItalianDate,
   formatItalianMonth,
+  calculateMrr,
   formatMrrDelta,
   formatMrrValue,
   isPrivateProject,
@@ -196,8 +197,9 @@ export default function ProjectDetailContent({
   const privateNotes =
     privateView && isPrivateProject(project) ? project.private_notes : null;
 
-  const mrrDelta = formatMrrDelta(project.mrr, project.mrr_prev);
-  const goalProgress = mrrGoalProgress(project.mrr, project.mrr_goal);
+  const currentMrr = calculateMrr(project.total_revenue, project.launch_date);
+  const mrrDelta = formatMrrDelta(currentMrr, project.mrr_prev);
+  const goalProgress = mrrGoalProgress(currentMrr, project.mrr_goal);
   const deltaToneClass =
     mrrDelta.tone === "positive"
       ? "text-emerald-400"
@@ -265,7 +267,7 @@ export default function ProjectDetailContent({
               MRR attuale
             </h3>
             <p className="mt-1.5 text-sm text-[var(--foreground)]">
-              {formatMrrValue(project.mrr)}
+              {formatMrrValue(currentMrr)}
             </p>
           </div>
           <div>
@@ -287,7 +289,7 @@ export default function ProjectDetailContent({
               />
             </div>
             <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-              {formatMrrValue(project.mrr)} di {formatMrrValue(project.mrr_goal)}{" "}
+              {formatMrrValue(currentMrr)} di {formatMrrValue(project.mrr_goal)}{" "}
               obiettivo ({goalProgress}%)
             </p>
           </div>

@@ -148,7 +148,8 @@ const HELP_TEXT = `<b>Comandi disponibili</b>
 /list — lista progetti con id e status
 
 /update [id] status [valore]
-/update [id] mrr [valore]
+/update [id] revenue [valore]
+/update [id] mrr [valore] (legacy — il MRR è calcolato da revenue e launch_date)
 /update [id] goal [valore]
 /update [id] prevmrr [valore]
 /update [id] launch [YYYY-MM-DD]
@@ -232,6 +233,19 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
       confirmMsg = `Status di <b>${project.name}</b> → <b>${value}</b>`;
       break;
     }
+    case "revenue": {
+      const value = parseMrr(rest[0] ?? "");
+      if (value === null) {
+        await sendTelegramMessage(
+          chatId,
+          "Revenue non valido. Usa un numero ≥ 0 con punto decimale (es. 49.00)."
+        );
+        return;
+      }
+      update = { total_revenue: value };
+      confirmMsg = `Revenue totale di <b>${project.name}</b> → €${formatMrr(value)}`;
+      break;
+    }
     case "mrr": {
       const value = parseMrr(rest[0] ?? "");
       if (value === null) {
@@ -242,7 +256,7 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
         return;
       }
       update = { mrr: value };
-      confirmMsg = `MRR di <b>${project.name}</b> → €${formatMrr(value)}`;
+      confirmMsg = `MRR di <b>${project.name}</b> → €${formatMrr(value)} (nota: il MRR in dashboard è calcolato da revenue e launch_date)`;
       break;
     }
     case "goal": {
@@ -375,7 +389,7 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
     default:
       await sendTelegramMessage(
         chatId,
-        "Campo non riconosciuto. Usa: status, mrr, goal, prevmrr, launch, idea, buildstart, users, milestone, notes, private, url."
+        "Campo non riconosciuto. Usa: status, revenue, mrr, goal, prevmrr, launch, idea, buildstart, users, milestone, notes, private, url."
       );
       return;
   }

@@ -53,6 +53,7 @@ export type Project = {
   mrr: number;
   mrr_goal: number;
   mrr_prev: number;
+  total_revenue: number;
   launch_date: string | null;
   idea_date: string | null;
   build_start_date: string | null;
@@ -82,6 +83,7 @@ export type PublicProject = {
   mrr: number;
   mrr_goal: number;
   mrr_prev: number;
+  total_revenue: number;
   launch_date: string | null;
   idea_date: string | null;
   build_start_date: string | null;
@@ -97,7 +99,7 @@ export type PublicProject = {
 };
 
 export const PUBLIC_PROJECT_COLUMNS =
-  "id, name, tagline, status, next_milestone, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, stack, url_site, url_repo, url_substack, roadmap, order_index, created_at, updated_at";
+  "id, name, tagline, status, next_milestone, mrr, mrr_goal, mrr_prev, total_revenue, launch_date, idea_date, build_start_date, users_count, stack, url_site, url_repo, url_substack, roadmap, order_index, created_at, updated_at";
 
 export const PRIVATE_PROJECT_COLUMNS = `${PUBLIC_PROJECT_COLUMNS}, private_notes, is_private`;
 
@@ -112,6 +114,7 @@ export function toPublicProject(row: Record<string, unknown>): PublicProject {
     mrr: Number(row.mrr) || 0,
     mrr_goal: Number(row.mrr_goal) || 0,
     mrr_prev: Number(row.mrr_prev) || 0,
+    total_revenue: Number(row.total_revenue) || 0,
     launch_date: (row.launch_date as string | null) ?? null,
     idea_date: (row.idea_date as string | null) ?? null,
     build_start_date: (row.build_start_date as string | null) ?? null,
@@ -156,6 +159,20 @@ const eurFormatter = new Intl.NumberFormat("it-IT", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+
+export function calculateMrr(
+  totalRevenue: number,
+  launchDate: string | null
+): number {
+  if (!launchDate || totalRevenue === 0) return 0;
+  const launch = new Date(launchDate);
+  const now = new Date();
+  const monthsElapsed =
+    (now.getFullYear() - launch.getFullYear()) * 12 +
+    (now.getMonth() - launch.getMonth());
+  const months = Math.max(monthsElapsed, 1);
+  return Math.round((totalRevenue / months) * 100) / 100;
+}
 
 export function formatMrr(mrr: number): string {
   if (mrr <= 0) return "—";
