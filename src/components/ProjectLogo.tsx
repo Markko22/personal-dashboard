@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { projectInitials, projectSlug } from "@/types/project";
 
 type Props = {
@@ -8,19 +8,13 @@ type Props = {
   variant?: "card" | "default";
 };
 
-/** Native <img> only — no next/image, so onError fires reliably. */
+/** Native <img> only — no next/image. HEAD pre-check before render. */
 export default function ProjectLogo({ name, variant = "default" }: Props) {
   const slug = projectSlug(name);
   const src = `/projects/${slug}.png?v=1`;
   const [imgError, setImgError] = useState(false);
-  const mountTimeRef = useRef(0);
+  const [srcReady, setSrcReady] = useState(false);
   const errorHandledRef = useRef(false);
-
-  useEffect(() => {
-    mountTimeRef.current = Date.now();
-    errorHandledRef.current = false;
-    setImgError(false);
-  }, [src]);
 
   const containerClass =
     variant === "card"
@@ -29,14 +23,39 @@ export default function ProjectLogo({ name, variant = "default" }: Props) {
 
   const initials = projectInitials(name);
 
-  const triggerFallback = () => {
+  const triggerFallback = useCallback(() => {
     if (errorHandledRef.current) return;
     errorHandledRef.current = true;
     setImgError(true);
-  };
+    setSrcReady(false);
+  }, []);
+
+  useEffect(() => {
+    errorHandledRef.current = false;
+    setImgError(false);
+    setSrcReady(false);
+
+    let cancelled = false;
+
+    fetch(src, { method: "HEAD" })
+      .then((res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          triggerFallback();
+        } else {
+          setSrcReady(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) triggerFallback();
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [src, triggerFallback]);
 
   const handleError = () => {
-    // Local missing assets fail within ~100ms of mountTimeRef — ref prevents retry
     triggerFallback();
   };
 
@@ -48,6 +67,10 @@ export default function ProjectLogo({ name, variant = "default" }: Props) {
         {initials}
       </div>
     );
+  }
+
+  if (!srcReady) {
+    return <div className={containerClass} aria-hidden />;
   }
 
   return (
