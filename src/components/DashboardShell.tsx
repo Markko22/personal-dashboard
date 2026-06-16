@@ -121,11 +121,11 @@ export default function DashboardShell({
 
   return (
     <div className="flex h-screen flex-row overflow-hidden bg-[var(--background)]">
-      <div className="w-[220px] shrink-0 overflow-y-auto border-r border-[var(--border)]">
+      <div className="w-[200px] shrink-0 overflow-y-auto border-r border-[var(--border)]">
         <Sidebar />
       </div>
 
-      <div className="w-[420px] shrink-0 overflow-y-auto px-6 py-8">
+      <div className="min-w-0 flex-1 overflow-y-auto p-6">
         <header className="mb-8">
           <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
             {headerTitle}
@@ -144,7 +144,7 @@ export default function DashboardShell({
         />
       </div>
 
-      <div className="min-w-0 flex-1 overflow-hidden border-l border-[var(--border)]">
+      <div className="flex h-full w-[320px] shrink-0 flex-col overflow-hidden border-l border-[var(--border)]">
         <ProjectDetail
           projects={projects}
           selectedProject={selectedProject}
