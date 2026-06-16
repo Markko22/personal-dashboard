@@ -10,12 +10,14 @@ import StatusBadge from "./StatusBadge";
 
 type Props = {
   project: PublicProject | PrivateProject;
+  selected?: boolean;
   showPrivateBadge?: boolean;
   onClick: () => void;
 };
 
 export default function ProjectCard({
   project,
+  selected = false,
   showPrivateBadge = false,
   onClick,
 }: Props) {
@@ -26,7 +28,11 @@ export default function ProjectCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex h-[200px] w-[280px] shrink-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 text-left transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--card-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+      className={`group flex h-[200px] w-[280px] shrink-0 flex-col rounded-lg border bg-[var(--card)] p-4 text-left transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--card-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] ${
+        selected
+          ? "border-[var(--accent)] ring-2 ring-[var(--accent)]"
+          : "border-[var(--border)]"
+      }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">

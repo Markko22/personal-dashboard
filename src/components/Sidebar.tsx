@@ -60,9 +60,9 @@ function SocialIcon({ type }: { type: (typeof SOCIAL_LINKS)[number]["icon"] }) {
 
 export default function Sidebar() {
   return (
-    <aside className="flex w-full shrink-0 flex-col border-b border-[var(--border)] bg-[var(--background)] lg:fixed lg:left-0 lg:top-0 lg:z-10 lg:h-screen lg:w-[260px] lg:border-b-0 lg:border-r">
-      <div className="flex flex-col gap-6 p-8 lg:p-8 lg:pt-10">
-        <div className="flex items-center gap-4 lg:flex-col lg:items-start lg:gap-3">
+    <aside className="flex h-full w-full flex-col bg-[var(--background)]">
+      <div className="flex flex-col gap-6 p-6 pt-8">
+        <div className="flex items-center gap-3">
           <Avatar />
           <div>
             <h1 className="text-lg font-semibold text-[var(--foreground)]">
