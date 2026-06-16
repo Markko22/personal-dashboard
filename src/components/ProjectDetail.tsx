@@ -45,8 +45,8 @@ export default function ProjectDetail({
   const groups = groupProjectsByStatus(projects);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="max-h-[40%] min-h-0 shrink-0 overflow-y-auto border-b border-[var(--border)] p-4">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#0d1520]">
+      <div className="max-h-[40%] min-h-0 shrink-0 overflow-y-auto rounded-lg bg-[var(--card)] p-3 m-3">
         <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
           PROGETTI
         </h3>
@@ -100,15 +100,20 @@ export default function ProjectDetail({
         </div>
       </div>
 
-      <div className="min-h-0 max-h-[60%] flex-1 overflow-y-auto p-4">
-        {selectedProject ? (
-          <ProjectDetailContent
-            project={selectedProject}
-            privateView={privateView}
-          />
-        ) : (
-          <p className="text-sm text-[var(--muted)]">Seleziona un progetto</p>
-        )}
+      <div className="min-h-0 max-h-[60%] flex-1 overflow-y-auto rounded-lg bg-[var(--card)] p-4 m-3 mt-0">
+        <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+          DETTAGLIO PROGETTO
+        </h3>
+        <div className="mt-3">
+          {selectedProject ? (
+            <ProjectDetailContent
+              project={selectedProject}
+              privateView={privateView}
+            />
+          ) : (
+            <p className="text-sm text-[var(--muted)]">Seleziona un progetto</p>
+          )}
+        </div>
       </div>
     </div>
   );
