@@ -28,7 +28,7 @@ export default function ProjectCard({
     <button
       type="button"
       onClick={onClick}
-      className={`group flex h-[200px] w-[280px] shrink-0 flex-col rounded-lg border bg-[var(--card)] p-4 text-left transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--card-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] ${
+      className={`group flex h-[200px] w-full flex-col rounded-lg border bg-[var(--card)] p-4 text-left transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--card-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] ${
         selected
           ? "border-[var(--accent)] ring-2 ring-[var(--accent)]"
           : "border-[var(--border)]"
@@ -45,24 +45,24 @@ export default function ProjectCard({
             </span>
           )}
         </div>
-        <ProjectLogo name={project.name} variant="card" />
-      </div>
-
-      <div className="mt-auto flex items-end justify-between gap-3 pt-3">
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-lg font-bold leading-tight text-[var(--foreground)] group-hover:text-white">
-            {project.name}
-          </h2>
-          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--muted-foreground)]">
-            {project.tagline}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex flex-col items-end gap-1.5">
           {project.is_company && (
             <span className="rounded-sm bg-zinc-800/80 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
               Aziendale
             </span>
           )}
+          <ProjectLogo name={project.name} variant="card" />
+        </div>
+      </div>
+
+      <div className="mt-auto pt-3">
+        <h2 className="truncate text-base font-bold leading-tight text-[var(--foreground)] group-hover:text-white sm:text-lg">
+          {project.name}
+        </h2>
+        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--muted-foreground)]">
+          {project.tagline}
+        </p>
+        <div className="mt-3 flex justify-end">
           <StatusBadge status={project.status} />
         </div>
       </div>

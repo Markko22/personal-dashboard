@@ -1,4 +1,4 @@
-import { handleTelegramUpdate } from "@/lib/telegram";
+import { handleTelegramCallback, handleTelegramUpdate } from "@/lib/telegram";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -27,6 +27,12 @@ type TelegramUpdate = {
   update_id: number;
   message?: TelegramMessage;
   edited_message?: TelegramMessage;
+  callback_query?: {
+    id: string;
+    from: TelegramUser;
+    message?: TelegramMessage;
+    data?: string;
+  };
 };
 
 function getEnvConfig():
@@ -68,6 +74,31 @@ export async function POST(request: NextRequest) {
 
   const message = extractMessage(update);
   if (!message) {
+    if (update.callback_query?.data && update.callback_query.from) {
+      const userId = update.callback_query.from.id;
+      const chatId = update.callback_query.message?.chat.id;
+
+      if (!chatId) {
+        return NextResponse.json({ ok: true });
+      }
+
+      if (String(userId) !== env.allowedUserId) {
+        console.warn(`Telegram webhook: unauthorized callback user ${userId}`);
+        return NextResponse.json({ ok: true });
+      }
+
+      try {
+        await handleTelegramCallback(
+          userId,
+          chatId,
+          update.callback_query.id,
+          update.callback_query.data
+        );
+      } catch (error) {
+        console.error("Telegram callback handler error:", error);
+      }
+    }
+
     return NextResponse.json({ ok: true });
   }
 

@@ -54,7 +54,7 @@ export default function ProjectGrid({
           Nessun progetto da mostrare.
         </p>
       ) : (
-        <div className="flex flex-wrap gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
           {visibleProjects.map((project) => (
             <ProjectCard
               key={project.id}

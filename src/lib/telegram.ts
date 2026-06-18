@@ -18,6 +18,9 @@ type WizardData = {
   name?: string;
   tagline?: string;
   status?: ProjectStatus;
+  project_id?: string;
+  is_private?: boolean;
+  is_company?: boolean;
 };
 
 type TelegramSession = {
@@ -28,24 +31,56 @@ type TelegramSession = {
 
 export async function sendTelegramMessage(
   chatId: number,
-  text: string
+  text: string,
+  replyMarkup?: { inline_keyboard: { text: string; callback_data: string }[][] }
 ): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) throw new Error("Missing TELEGRAM_BOT_TOKEN");
 
+  const body: Record<string, unknown> = {
+    chat_id: chatId,
+    text,
+    parse_mode: "HTML",
+  };
+  if (replyMarkup) {
+    body.reply_markup = replyMarkup;
+  }
+
   const res = await fetch(`${TELEGRAM_API}/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: "HTML",
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
-    const body = await res.text();
-    console.error("Telegram sendMessage failed:", body);
+    const responseBody = await res.text();
+    console.error("Telegram sendMessage failed:", responseBody);
+  }
+}
+
+async function answerCallbackQuery(
+  callbackQueryId: string,
+  text?: string
+): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error("Missing TELEGRAM_BOT_TOKEN");
+
+  const res = await fetch(
+    `${TELEGRAM_API}/bot${token}/answerCallbackQuery`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        callback_query_id: callbackQueryId,
+        text,
+        show_alert: false,
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const responseBody = await res.text();
+    console.error("Telegram answerCallbackQuery failed:", responseBody);
   }
 }
 
@@ -85,6 +120,13 @@ function parseLaunchDate(raw: string): string | null {
   }
 
   return value;
+}
+
+function parseYesNo(raw: string): boolean | null {
+  const value = raw.trim().toLowerCase();
+  if (["sì", "si", "s", "yes", "y", "true", "1"].includes(value)) return true;
+  if (["no", "n", "false", "0"].includes(value)) return false;
+  return null;
 }
 
 async function findProjectByIdPrefix(prefix: string): Promise<Project | null> {
@@ -159,7 +201,10 @@ const HELP_TEXT = `<b>Comandi disponibili</b>
 /update [id] milestone [testo]
 /update [id] notes [testo]
 /update [id] private true|false
+/update [id] company true|false
 /update [id] url [site|repo|substack] [url]
+
+/edit [id] — modifica privato e aziendale (wizard)
 
 /delete [id] — elimina progetto (richiede /confirm)
 /confirm [id] — conferma eliminazione
@@ -180,7 +225,7 @@ async function handleList(chatId: number): Promise<void> {
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("projects")
-    .select("id, name, status")
+    .select("id, name, status, is_company")
     .order("order_index", { ascending: true });
 
   if (error) throw error;
@@ -191,11 +236,24 @@ async function handleList(chatId: number): Promise<void> {
   }
 
   const lines = data.map(
-    (p: { id: string; name: string; status: string }) =>
-      `<b>${p.name}</b>\n<code>${p.id.slice(0, 8)}</code> — ${p.status}`
+    (p: { id: string; name: string; status: string; is_company: boolean }) =>
+      `<b>${p.name}</b>\n<code>${p.id.slice(0, 8)}</code> — ${p.status}${p.is_company ? " · aziendale" : ""}`
   );
 
-  await sendTelegramMessage(chatId, lines.join("\n\n"));
+  const inline_keyboard = data.map(
+    (p: { id: string; name: string; is_company: boolean }) => [
+      {
+        text: `Aziendale: ${p.is_company ? "✅" : "❌"}`,
+        callback_data: `toggle_company:${p.id.slice(0, 8)}`,
+      },
+    ]
+  );
+
+  await sendTelegramMessage(
+    chatId,
+    lines.join("\n\n"),
+    { inline_keyboard }
+  );
 }
 
 async function handleUpdate(chatId: number, args: string[]): Promise<void> {
@@ -366,6 +424,19 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
       confirmMsg = `Visibilità di <b>${project.name}</b> → ${value === "true" ? "privato" : "pubblico"}`;
       break;
     }
+    case "company": {
+      const value = rest[0]?.toLowerCase();
+      if (value !== "true" && value !== "false") {
+        await sendTelegramMessage(
+          chatId,
+          "Uso: /update [id] company true|false"
+        );
+        return;
+      }
+      update = { is_company: value === "true" };
+      confirmMsg = `Flag aziendale di <b>${project.name}</b> → ${value === "true" ? "sì" : "no"}`;
+      break;
+    }
     case "url": {
       const urlField = rest[0];
       const url = rest.slice(1).join(" ").trim();
@@ -389,7 +460,7 @@ async function handleUpdate(chatId: number, args: string[]): Promise<void> {
     default:
       await sendTelegramMessage(
         chatId,
-        "Campo non riconosciuto. Usa: status, revenue, mrr, goal, prevmrr, launch, idea, buildstart, users, milestone, notes, private, url."
+        "Campo non riconosciuto. Usa: status, revenue, mrr, goal, prevmrr, launch, idea, buildstart, users, milestone, notes, private, company, url."
       );
       return;
   }
@@ -718,6 +789,109 @@ async function handleAddStart(chatId: number): Promise<void> {
   );
 }
 
+async function handleEditStart(chatId: number, args: string[]): Promise<void> {
+  const [idPrefix] = args;
+
+  if (!idPrefix) {
+    await sendTelegramMessage(chatId, "Uso: /edit [id]");
+    return;
+  }
+
+  const project = await findProjectByIdPrefix(idPrefix);
+
+  if (!project) {
+    await sendTelegramMessage(chatId, `Progetto non trovato per id "${idPrefix}".`);
+    return;
+  }
+
+  await setSession(chatId, "edit_private", {
+    project_id: project.id,
+    is_private: project.is_private,
+    is_company: project.is_company,
+  });
+
+  await sendTelegramMessage(
+    chatId,
+    `Modifica <b>${project.name}</b>\n\nQuesto progetto è privato? (sì/no)\n(/cancel per annullare)`,
+    {
+      inline_keyboard: [
+        [
+          {
+            text: `Aziendale: ${project.is_company ? "✅" : "❌"}`,
+            callback_data: `toggle_company:${project.id.slice(0, 8)}`,
+          },
+        ],
+      ],
+    }
+  );
+}
+
+async function handleToggleCompany(
+  chatId: number,
+  idPrefix: string
+): Promise<string> {
+  const project = await findProjectByIdPrefix(idPrefix);
+
+  if (!project) {
+    throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+  }
+
+  const newValue = !project.is_company;
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({ is_company: newValue })
+    .eq("id", project.id);
+
+  if (error) throw error;
+
+  const session = await getSession(chatId);
+  if (
+    session &&
+    session.data.project_id === project.id &&
+    (session.step === "edit_private" || session.step === "edit_company")
+  ) {
+    await setSession(chatId, session.step, {
+      ...session.data,
+      is_company: newValue,
+    });
+  }
+
+  return `<b>${project.name}</b> — Aziendale: ${newValue ? "sì ✅" : "no ❌"}`;
+}
+
+export async function handleTelegramCallback(
+  userId: number,
+  chatId: number,
+  callbackQueryId: string,
+  data: string
+): Promise<void> {
+  if (!isAllowedUser(userId)) {
+    await answerCallbackQuery(callbackQueryId, "Non autorizzato.");
+    return;
+  }
+
+  try {
+    if (data.startsWith("toggle_company:")) {
+      const idPrefix = data.slice("toggle_company:".length);
+      const confirmMsg = await handleToggleCompany(chatId, idPrefix);
+      await answerCallbackQuery(
+        callbackQueryId,
+        confirmMsg.replace(/<[^>]+>/g, "")
+      );
+      await sendTelegramMessage(chatId, `✓ ${confirmMsg}`);
+      return;
+    }
+
+    await answerCallbackQuery(callbackQueryId, "Azione non riconosciuta.");
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Errore durante l'aggiornamento.";
+    await answerCallbackQuery(callbackQueryId, message);
+    await sendTelegramMessage(chatId, message);
+  }
+}
+
 async function handleWizardInput(
   chatId: number,
   text: string,
@@ -813,6 +987,53 @@ async function handleWizardInput(
       );
       break;
     }
+    case "edit_private": {
+      const isPrivate = parseYesNo(text);
+      if (isPrivate === null) {
+        await sendTelegramMessage(chatId, "Risposta non valida. Usa sì o no.");
+        return;
+      }
+      data.is_private = isPrivate;
+      await setSession(chatId, "edit_company", data);
+      await sendTelegramMessage(
+        chatId,
+        "Questo progetto è aziendale? (sì/no)"
+      );
+      break;
+    }
+    case "edit_company": {
+      const isCompany = parseYesNo(text);
+      if (isCompany === null) {
+        await sendTelegramMessage(chatId, "Risposta non valida. Usa sì o no.");
+        return;
+      }
+
+      if (!data.project_id) {
+        await clearSession(chatId);
+        await sendTelegramMessage(chatId, "Sessione non valida. Riprova con /edit.");
+        return;
+      }
+
+      const supabase = createServiceClient();
+      const { data: updated, error } = await supabase
+        .from("projects")
+        .update({
+          is_private: data.is_private,
+          is_company: isCompany,
+        })
+        .eq("id", data.project_id)
+        .select("name, is_private, is_company")
+        .single();
+
+      if (error) throw error;
+
+      await clearSession(chatId);
+      await sendTelegramMessage(
+        chatId,
+        `✓ <b>${updated.name}</b> aggiornato.\nPrivato: ${updated.is_private ? "sì" : "no"}\nAziendale: ${updated.is_company ? "sì" : "no"}`
+      );
+      break;
+    }
     default:
       await clearSession(chatId);
       await sendTelegramMessage(chatId, "Sessione non valida. Riprova con /add.");
@@ -867,6 +1088,9 @@ export async function handleTelegramUpdate(
       break;
     case "/add":
       await handleAddStart(chatId);
+      break;
+    case "/edit":
+      await handleEditStart(chatId, args);
       break;
     case "/delete":
       await handleDelete(chatId, args);

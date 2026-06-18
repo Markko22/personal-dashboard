@@ -223,7 +223,7 @@ export default function ProjectDetailContent({
       </span>
 
       <div className="mt-2 flex flex-wrap items-start gap-3">
-        <h2 className="text-xl font-bold text-[var(--foreground)]">
+        <h2 className="text-lg font-bold text-[var(--foreground)] sm:text-xl">
           {project.name}
         </h2>
         <StatusBadge status={project.status} />
