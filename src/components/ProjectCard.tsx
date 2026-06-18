@@ -57,7 +57,14 @@ export default function ProjectCard({
             {project.tagline}
           </p>
         </div>
-        <StatusBadge status={project.status} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          {project.is_company && (
+            <span className="rounded-sm bg-zinc-800/80 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
+              Aziendale
+            </span>
+          )}
+          <StatusBadge status={project.status} />
+        </div>
       </div>
     </button>
   );

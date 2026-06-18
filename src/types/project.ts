@@ -64,6 +64,7 @@ export type Project = {
   url_substack: string | null;
   private_notes: string | null;
   is_private: boolean;
+  is_company: boolean;
   roadmap: RoadmapItem[];
   order_index: number;
   created_at: string;
@@ -92,6 +93,7 @@ export type PublicProject = {
   url_site: string | null;
   url_repo: string | null;
   url_substack: string | null;
+  is_company: boolean;
   roadmap: RoadmapItem[];
   order_index: number;
   created_at: string;
@@ -99,7 +101,7 @@ export type PublicProject = {
 };
 
 export const PUBLIC_PROJECT_COLUMNS =
-  "id, name, tagline, status, next_milestone, mrr, mrr_goal, mrr_prev, total_revenue, launch_date, idea_date, build_start_date, users_count, stack, url_site, url_repo, url_substack, roadmap, order_index, created_at, updated_at";
+  "id, name, tagline, status, next_milestone, mrr, mrr_goal, mrr_prev, total_revenue, launch_date, idea_date, build_start_date, users_count, stack, url_site, url_repo, url_substack, is_company, roadmap, order_index, created_at, updated_at";
 
 export const PRIVATE_PROJECT_COLUMNS = `${PUBLIC_PROJECT_COLUMNS}, private_notes, is_private`;
 
@@ -123,6 +125,7 @@ export function toPublicProject(row: Record<string, unknown>): PublicProject {
     url_site: (row.url_site as string | null) ?? null,
     url_repo: (row.url_repo as string | null) ?? null,
     url_substack: (row.url_substack as string | null) ?? null,
+    is_company: Boolean(row.is_company),
     roadmap: parseRoadmap(row.roadmap),
     order_index: (row.order_index as number) ?? 0,
     created_at: row.created_at as string,
