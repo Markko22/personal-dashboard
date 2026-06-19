@@ -45,10 +45,10 @@ export default function ProjectDetail({
   const groups = groupProjectsByStatus(projects);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#0d1520]">
-      <div className="max-h-[40%] min-h-0 shrink-0 overflow-y-auto rounded-lg bg-[var(--card)] p-3 m-3">
-        <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-          PROGETTI
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden bg-[#0d1520] p-3">
+      <div className="max-h-[40%] min-h-0 shrink-0 overflow-y-auto rounded-xl border border-[#1a2436] bg-[#0a1018]/95 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <h3 className="border-b border-[var(--border)] pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+          I MIEI PROGETTI
         </h3>
         <div className="mt-3">
           {groups.map((group, groupIndex) => {
@@ -84,8 +84,8 @@ export default function ProjectDetail({
                           onClick={() => onSelectProject(project)}
                           className={`w-full truncate rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
                             isSelected
-                              ? "bg-[var(--card-hover)] font-medium text-[var(--foreground)]"
-                              : "text-[var(--muted-foreground)] hover:bg-[var(--card)] hover:text-[var(--foreground)]"
+                              ? "border-l-2 border-[var(--accent)] bg-[var(--accent)]/10 pl-[calc(0.5rem-2px)] font-medium text-[var(--foreground)]"
+                              : "text-[var(--muted-foreground)] hover:bg-[#141c2a] hover:text-[var(--foreground)]"
                           }`}
                         >
                           {project.name}
@@ -100,9 +100,9 @@ export default function ProjectDetail({
         </div>
       </div>
 
-      <div className="min-h-0 max-h-[60%] flex-1 overflow-y-auto rounded-lg bg-[var(--card)] p-4 m-3 mt-0">
-        <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-          DETTAGLIO PROGETTO
+      <div className="min-h-0 max-h-[60%] flex-1 overflow-y-auto rounded-2xl border border-[var(--border-hover)] bg-[#1a2740] p-5 shadow-[0_-4px_16px_rgba(0,0,0,0.25)]">
+        <h3 className="border-b border-[var(--accent)]/30 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
+          DETTAGLIO
         </h3>
         <div className="mt-3">
           {selectedProject ? (
