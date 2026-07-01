@@ -3,10 +3,29 @@
 import {
   isPrivateProject,
   type PrivateProject,
+  type ProjectStatus,
   type PublicProject,
 } from "@/types/project";
 import ProjectLogo from "./ProjectLogo";
 import StatusBadge from "./StatusBadge";
+
+function getCardBackground(status: ProjectStatus): string {
+  switch (status) {
+    case "live":
+      return "bg-green-500/10 border-green-500/30";
+    case "building":
+      return "bg-yellow-500/10 border-yellow-500/30";
+    case "beta":
+      return "bg-orange-500/10 border-orange-500/30";
+    case "paused":
+      return "bg-blue-500/10 border-blue-500/30";
+    case "archived":
+      return "bg-zinc-800/50 border-zinc-700 opacity-60";
+    case "idea":
+    default:
+      return "bg-zinc-900 border-zinc-800";
+  }
+}
 
 type Props = {
   project: PublicProject | PrivateProject;
@@ -28,10 +47,10 @@ export default function ProjectCard({
     <button
       type="button"
       onClick={onClick}
-      className={`group flex h-[200px] w-full flex-col rounded-lg border bg-[var(--card)] p-4 text-left transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--card-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] ${
+      className={`group flex h-[200px] w-full flex-col rounded-lg border p-4 text-left transition-colors duration-300 hover:border-[var(--border-hover)] hover:bg-[var(--card-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] ${getCardBackground(project.status)} ${
         selected
           ? "border-[var(--accent)] ring-2 ring-[var(--accent)]"
-          : "border-[var(--border)]"
+          : ""
       }`}
     >
       <div className="flex items-start justify-between gap-2">
