@@ -648,7 +648,7 @@ async function executeTool(
       const name = String(toolInput.name ?? "").trim();
       const tagline = String(toolInput.tagline ?? "").trim();
       const status = normalizeProjectStatus(String(toolInput.status ?? ""));
-      const urlSiteRaw = toolInput.url_site
+      const url_site = toolInput.url_site
         ? String(toolInput.url_site).trim()
         : "";
 
@@ -667,12 +667,18 @@ async function executeTool(
         };
       }
 
-      const { data: maxOrder } = await supabase
+      const { data: maxOrder, error: orderError } = await supabase
         .from("projects")
         .select("order_index")
         .order("order_index", { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      if (orderError) {
+        return {
+          error: `Lettura order_index fallita: ${orderError.message} | code: ${orderError.code} | details: ${orderError.details}`,
+        };
+      }
 
       const orderIndex = (maxOrder?.order_index ?? 0) + 1;
 
@@ -680,19 +686,21 @@ async function executeTool(
         .from("projects")
         .insert({
           name,
-          tagline,
+          tagline: tagline ?? "",
           status,
-          url_site: urlSiteRaw || null,
+          url_site: url_site || null,
           order_index: orderIndex,
         })
-        .select("id, name, status")
+        .select("id, name")
         .single();
 
       if (error) {
-        console.error("create_project error:", JSON.stringify(error));
         return {
-          error: `Errore DB: ${error.message} (code: ${error.code})`,
+          error: `Insert fallito: ${error.message} | code: ${error.code} | details: ${error.details}`,
         };
+      }
+      if (!created) {
+        return { error: "Insert completato ma nessun dato restituito" };
       }
 
       return {
