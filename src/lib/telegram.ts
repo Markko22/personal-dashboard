@@ -297,10 +297,6 @@ function parseMrr(raw: string): number | null {
   return Math.round(parsed * 100) / 100;
 }
 
-function formatMrr(value: number): string {
-  return value.toFixed(2);
-}
-
 function parseLaunchDate(raw: string): string | null {
   const value = raw.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -448,8 +444,7 @@ function normalizeProjectStatus(raw: string): ProjectStatus | null {
 
 async function executeTool(
   toolName: string,
-  toolInput: Record<string, unknown>,
-  _chatId: number
+  toolInput: Record<string, unknown>
 ): Promise<unknown> {
   const supabase = createServiceClient();
 
@@ -920,7 +915,7 @@ async function runClaudeWithTools(
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  let currentMessages = [...messages];
+  const currentMessages = [...messages];
 
   while (true) {
     const response = await client.messages.create({
@@ -960,8 +955,7 @@ async function runClaudeWithTools(
             try {
               const result = await executeTool(
                 block.name,
-                block.input as Record<string, unknown>,
-                chatId
+                block.input as Record<string, unknown>
               );
               return {
                 type: "tool_result" as const,
