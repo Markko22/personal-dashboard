@@ -344,6 +344,23 @@ async function findProjectByIdPrefix(prefix: string): Promise<Project | null> {
   return matches[0];
 }
 
+async function findProjectByPrefixOrName(prefix: string): Promise<Project | null> {
+  let project = await findProjectByIdPrefix(prefix);
+
+  if (!project) {
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from("projects")
+      .select("*")
+      .ilike("name", `%${prefix}%`)
+      .limit(1)
+      .maybeSingle();
+    project = data as Project | null;
+  }
+
+  return project;
+}
+
 async function getSession(chatId: number): Promise<TelegramSession | null> {
   const supabase = createServiceClient();
   const { data, error } = await supabase
@@ -477,11 +494,10 @@ async function executeTool(
     }
 
     case "get_project": {
-      const idPrefix = String(toolInput.id_prefix ?? "");
-      const project = await findProjectByIdPrefix(idPrefix);
-      if (!project) {
-        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
-      }
+      const { id_prefix } = toolInput as { id_prefix: string };
+      const project = await findProjectByPrefixOrName(id_prefix);
+
+      if (!project) return { error: `Progetto non trovato: ${id_prefix}` };
       return project;
     }
 
@@ -490,7 +506,7 @@ async function executeTool(
       const field = String(toolInput.field ?? "").toLowerCase();
       const value = String(toolInput.value ?? "");
 
-      const project = await findProjectByIdPrefix(idPrefix);
+      const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
         throw new Error(`Progetto non trovato per id "${idPrefix}".`);
       }
@@ -658,7 +674,7 @@ async function executeTool(
 
     case "delete_project": {
       const idPrefix = String(toolInput.id_prefix ?? "");
-      const project = await findProjectByIdPrefix(idPrefix);
+      const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
         throw new Error(`Progetto non trovato per id "${idPrefix}".`);
       }
@@ -685,7 +701,7 @@ async function executeTool(
 
       let projectId: string | null = null;
       if (toolInput.project_id_prefix) {
-        const project = await findProjectByIdPrefix(
+        const project = await findProjectByPrefixOrName(
           String(toolInput.project_id_prefix)
         );
         if (!project) {
@@ -734,7 +750,7 @@ async function executeTool(
       const date = String(toolInput.date ?? "");
       const title = String(toolInput.title ?? "").trim();
 
-      const project = await findProjectByIdPrefix(idPrefix);
+      const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
         throw new Error(`Progetto non trovato per id "${idPrefix}".`);
       }
@@ -774,7 +790,7 @@ async function executeTool(
 
     case "list_timeline": {
       const idPrefix = String(toolInput.id_prefix ?? "");
-      const project = await findProjectByIdPrefix(idPrefix);
+      const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
         throw new Error(`Progetto non trovato per id "${idPrefix}".`);
       }
@@ -810,7 +826,7 @@ async function executeTool(
       const priority = String(toolInput.priority ?? "");
       const title = String(toolInput.title ?? "").trim();
 
-      const project = await findProjectByIdPrefix(idPrefix);
+      const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
         throw new Error(`Progetto non trovato per id "${idPrefix}".`);
       }
@@ -849,7 +865,7 @@ async function executeTool(
       const itemIdPrefix = String(toolInput.item_id_prefix ?? "");
       const status = String(toolInput.status ?? "") as RoadmapItemStatus;
 
-      const project = await findProjectByIdPrefix(idPrefix);
+      const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
         throw new Error(`Progetto non trovato per id "${idPrefix}".`);
       }
@@ -878,7 +894,7 @@ async function executeTool(
 
     case "list_roadmap": {
       const idPrefix = String(toolInput.id_prefix ?? "");
-      const project = await findProjectByIdPrefix(idPrefix);
+      const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
         throw new Error(`Progetto non trovato per id "${idPrefix}".`);
       }
