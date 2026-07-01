@@ -315,6 +315,7 @@ function parseLaunchDate(raw: string): string | null {
   return value;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function parseYesNo(raw: string): boolean | null {
   const value = raw.trim().toLowerCase();
   if (["sì", "si", "s", "yes", "y", "true", "1"].includes(value)) return true;
