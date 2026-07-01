@@ -29,6 +29,202 @@ type TelegramSession = {
   data: WizardData;
 };
 
+type ConversationMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+const SYSTEM_PROMPT = `Sei l'assistente personale di Marco, solopreneur italiano che gestisce più side project.
+Hai accesso al suo dashboard progetti tramite tool e puoi leggere e aggiornare dati in tempo reale.
+
+I tuoi compiti:
+- Rispondere a domande libere sui progetti ("come va OpFanta?", "qual è il MRR totale?")
+- Aggiornare campi quando Marco te lo chiede ("setta il revenue di OpFanta a 49 euro")
+- Salvare idee veloci quando Marco ti lancia uno spunto
+- Aggiungere eventi timeline o roadmap item
+- Creare o eliminare progetti
+
+Regole:
+- Rispondi SEMPRE in italiano
+- Sii conciso e diretto, sei su Telegram (no markdown eccessivo, no asterischi)
+- Se Marco dice "idea: [testo]" o "spunto: [testo]" o "ho visto su Instagram che...", usa save_idea
+- Per eliminare un progetto, chiedi SEMPRE conferma prima di chiamare delete_project
+- Se non capisci a quale progetto si riferisce, chiedi con una domanda corta
+- Date in formato italiano (es. "1 luglio 2026") convertile in YYYY-MM-DD prima di passarle ai tool
+- Se Marco chiede "cosa puoi fare?" descrivi le capacità in linguaggio naturale, non lista comandi
+`;
+
+const TOOLS = [
+  {
+    name: "list_projects",
+    description:
+      "Restituisce tutti i progetti con id, nome, status, MRR, utenti",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_project",
+    description: "Dettaglio completo di un singolo progetto",
+    input_schema: {
+      type: "object",
+      properties: {
+        id_prefix: {
+          type: "string",
+          description: "Prime 4-8 lettere dell'id UUID",
+        },
+      },
+      required: ["id_prefix"],
+    },
+  },
+  {
+    name: "update_project",
+    description:
+      "Aggiorna un campo di un progetto. field può essere: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, is_private, is_company, url_site, url_repo, url_substack",
+    input_schema: {
+      type: "object",
+      properties: {
+        id_prefix: { type: "string" },
+        field: { type: "string" },
+        value: {
+          type: "string",
+          description: "Il valore come stringa — sarà parsato internamente",
+        },
+      },
+      required: ["id_prefix", "field", "value"],
+    },
+  },
+  {
+    name: "create_project",
+    description: "Crea un nuovo progetto",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        tagline: { type: "string", description: "Max 80 caratteri" },
+        status: {
+          type: "string",
+          description: "idea | building | beta | live | paused | dead",
+        },
+        url_site: { type: "string", description: "Opzionale" },
+      },
+      required: ["name", "tagline", "status"],
+    },
+  },
+  {
+    name: "delete_project",
+    description:
+      "Elimina un progetto. Usare SOLO dopo conferma esplicita dell'utente.",
+    input_schema: {
+      type: "object",
+      properties: {
+        id_prefix: { type: "string" },
+      },
+      required: ["id_prefix"],
+    },
+  },
+  {
+    name: "save_idea",
+    description: "Salva un'idea o spunto veloce nella tabella ideas",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        body: { type: "string", description: "Testo o dettaglio dell'idea" },
+        source: {
+          type: "string",
+          description: "Opzionale: instagram, x, manuale, etc.",
+        },
+        project_id_prefix: {
+          type: "string",
+          description: "Opzionale: collega a un progetto esistente",
+        },
+      },
+      required: ["title", "body"],
+    },
+  },
+  {
+    name: "list_ideas",
+    description: "Legge le idee salvate",
+    input_schema: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          description:
+            "Opzionale: bozza | sviluppata | scartata. Se omesso mostra tutte.",
+        },
+      },
+    },
+  },
+  {
+    name: "add_timeline_event",
+    description: "Aggiunge un evento alla timeline di un progetto",
+    input_schema: {
+      type: "object",
+      properties: {
+        id_prefix: { type: "string" },
+        type: {
+          type: "string",
+          description: "Uno dei tipi validi (es. launch, milestone, update)",
+        },
+        date: { type: "string", description: "YYYY-MM-DD" },
+        title: { type: "string" },
+      },
+      required: ["id_prefix", "type", "date", "title"],
+    },
+  },
+  {
+    name: "list_timeline",
+    description: "Lista eventi timeline di un progetto",
+    input_schema: {
+      type: "object",
+      properties: {
+        id_prefix: { type: "string" },
+      },
+      required: ["id_prefix"],
+    },
+  },
+  {
+    name: "add_roadmap_item",
+    description: "Aggiunge un item alla roadmap di un progetto",
+    input_schema: {
+      type: "object",
+      properties: {
+        id_prefix: { type: "string" },
+        priority: { type: "string", description: "high | medium | low" },
+        title: { type: "string" },
+      },
+      required: ["id_prefix", "priority", "title"],
+    },
+  },
+  {
+    name: "update_roadmap_item",
+    description: "Cambia lo status di un item roadmap",
+    input_schema: {
+      type: "object",
+      properties: {
+        id_prefix: { type: "string", description: "ID del progetto" },
+        item_id_prefix: {
+          type: "string",
+          description: "ID parziale dell'item roadmap",
+        },
+        status: { type: "string", description: "todo | in_progress | done" },
+      },
+      required: ["id_prefix", "item_id_prefix", "status"],
+    },
+  },
+  {
+    name: "list_roadmap",
+    description: "Lista roadmap di un progetto",
+    input_schema: {
+      type: "object",
+      properties: {
+        id_prefix: { type: "string" },
+      },
+      required: ["id_prefix"],
+    },
+  },
+];
+
 export async function sendTelegramMessage(
   chatId: number,
   text: string,
@@ -185,293 +381,25 @@ async function clearSession(chatId: number): Promise<void> {
   await supabase.from("telegram_sessions").delete().eq("chat_id", chatId);
 }
 
-const HELP_TEXT = `<b>Comandi disponibili</b>
-
-/list — lista progetti con id e status
-
-/update [id] status [valore]
-/update [id] revenue [valore]
-/update [id] mrr [valore] (legacy — il MRR è calcolato da revenue e launch_date)
-/update [id] goal [valore]
-/update [id] prevmrr [valore]
-/update [id] launch [YYYY-MM-DD]
-/update [id] idea [YYYY-MM-DD]
-/update [id] buildstart [YYYY-MM-DD]
-/update [id] users [valore]
-/update [id] milestone [testo]
-/update [id] notes [testo]
-/update [id] private true|false
-/update [id] company true|false
-/update [id] url [site|repo|substack] [url]
-
-/edit [id] — modifica privato e aziendale (wizard)
-
-/delete [id] — elimina progetto (richiede /confirm)
-/confirm [id] — conferma eliminazione
-
-/timeline [id] add [type] [YYYY-MM-DD] [titolo]
-/timeline [id] list
-
-/roadmap [id] add [priority] [titolo]
-/roadmap [id] done [item_id]
-/roadmap [id] wip [item_id]
-/roadmap [id] list
-
-/add — aggiungi nuovo progetto (wizard)
-/cancel — annulla wizard in corso
-/help — questo messaggio`;
-
-async function handleList(chatId: number): Promise<void> {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from("projects")
-    .select("id, name, status, is_company")
-    .order("order_index", { ascending: true });
-
-  if (error) throw error;
-
-  if (!data?.length) {
-    await sendTelegramMessage(chatId, "Nessun progetto trovato.");
-    return;
-  }
-
-  const lines = data.map(
-    (p: { id: string; name: string; status: string; is_company: boolean }) =>
-      `<b>${p.name}</b>\n<code>${p.id.slice(0, 8)}</code> — ${p.status}${p.is_company ? " · aziendale" : ""}`
-  );
-
-  const inline_keyboard = data.map(
-    (p: { id: string; name: string; is_company: boolean }) => [
-      {
-        text: `Aziendale: ${p.is_company ? "✅" : "❌"}`,
-        callback_data: `toggle_company:${p.id.slice(0, 8)}`,
-      },
-    ]
-  );
-
-  await sendTelegramMessage(
-    chatId,
-    lines.join("\n\n"),
-    { inline_keyboard }
+async function getConversationHistory(
+  chatId: number
+): Promise<ConversationMessage[]> {
+  const session = await getSession(chatId);
+  if (!session || session.step !== "conversation") return [];
+  return (
+    (session.data as unknown as { messages: ConversationMessage[] }).messages ??
+    []
   );
 }
 
-async function handleUpdate(chatId: number, args: string[]): Promise<void> {
-  if (args.length < 2) {
-    await sendTelegramMessage(
-      chatId,
-      "Uso: /update [id] [campo] [valore]\nEsempio: /update abc123 status live"
-    );
-    return;
-  }
-
-  const [idPrefix, field, ...rest] = args;
-  const project = await findProjectByIdPrefix(idPrefix);
-
-  if (!project) {
-    await sendTelegramMessage(chatId, `Progetto non trovato per id "${idPrefix}".`);
-    return;
-  }
-
-  const supabase = createServiceClient();
-  let update: Record<string, unknown> = {};
-  let confirmMsg = "";
-
-  switch (field) {
-    case "status": {
-      const value = rest[0] as ProjectStatus;
-      if (!value || !PROJECT_STATUSES.includes(value)) {
-        await sendTelegramMessage(
-          chatId,
-          `Status non valido. Valori: ${PROJECT_STATUSES.join(", ")}`
-        );
-        return;
-      }
-      update = { status: value };
-      confirmMsg = `Status di <b>${project.name}</b> → <b>${value}</b>`;
-      break;
-    }
-    case "revenue": {
-      const value = parseMrr(rest[0] ?? "");
-      if (value === null) {
-        await sendTelegramMessage(
-          chatId,
-          "Revenue non valido. Usa un numero ≥ 0 con punto decimale (es. 49.00)."
-        );
-        return;
-      }
-      update = { total_revenue: value };
-      confirmMsg = `Revenue totale di <b>${project.name}</b> → €${formatMrr(value)}`;
-      break;
-    }
-    case "mrr": {
-      const value = parseMrr(rest[0] ?? "");
-      if (value === null) {
-        await sendTelegramMessage(
-          chatId,
-          "MRR non valido. Usa un numero ≥ 0 con punto decimale (es. 4.90)."
-        );
-        return;
-      }
-      update = { mrr: value };
-      confirmMsg = `MRR di <b>${project.name}</b> → €${formatMrr(value)} (nota: il MRR in dashboard è calcolato da revenue e launch_date)`;
-      break;
-    }
-    case "goal": {
-      const value = parseMrr(rest[0] ?? "");
-      if (value === null) {
-        await sendTelegramMessage(
-          chatId,
-          "Obiettivo MRR non valido. Usa un numero ≥ 0 con punto decimale (es. 500)."
-        );
-        return;
-      }
-      update = { mrr_goal: value };
-      confirmMsg = `Obiettivo MRR di <b>${project.name}</b> → €${formatMrr(value)}`;
-      break;
-    }
-    case "prevmrr": {
-      const value = parseMrr(rest[0] ?? "");
-      if (value === null) {
-        await sendTelegramMessage(
-          chatId,
-          "MRR precedente non valido. Usa un numero ≥ 0 con punto decimale (es. 4.90)."
-        );
-        return;
-      }
-      update = { mrr_prev: value };
-      confirmMsg = `MRR mese scorso di <b>${project.name}</b> → €${formatMrr(value)}`;
-      break;
-    }
-    case "launch": {
-      const value = parseLaunchDate(rest[0] ?? "");
-      if (!value) {
-        await sendTelegramMessage(
-          chatId,
-          "Data non valida. Usa il formato YYYY-MM-DD (es. 2024-09-01)."
-        );
-        return;
-      }
-      update = { launch_date: value };
-      confirmMsg = `Launch date di <b>${project.name}</b> → ${value}`;
-      break;
-    }
-    case "idea": {
-      const value = parseLaunchDate(rest[0] ?? "");
-      if (!value) {
-        await sendTelegramMessage(
-          chatId,
-          "Data non valida. Usa il formato YYYY-MM-DD (es. 2024-01-15)."
-        );
-        return;
-      }
-      update = { idea_date: value };
-      confirmMsg = `Idea date di <b>${project.name}</b> → ${value}`;
-      break;
-    }
-    case "buildstart": {
-      const value = parseLaunchDate(rest[0] ?? "");
-      if (!value) {
-        await sendTelegramMessage(
-          chatId,
-          "Data non valida. Usa il formato YYYY-MM-DD (es. 2024-03-01)."
-        );
-        return;
-      }
-      update = { build_start_date: value };
-      confirmMsg = `Inizio build di <b>${project.name}</b> → ${value}`;
-      break;
-    }
-    case "users": {
-      const value = parseInt(rest[0], 10);
-      if (isNaN(value) || value < 0) {
-        await sendTelegramMessage(
-          chatId,
-          "Utenti deve essere un numero intero ≥ 0."
-        );
-        return;
-      }
-      update = { users_count: value };
-      confirmMsg = `Utenti di <b>${project.name}</b> → ${value}`;
-      break;
-    }
-    case "milestone": {
-      const value = rest.join(" ").trim();
-      if (!value) {
-        await sendTelegramMessage(chatId, "Specifica il testo della milestone.");
-        return;
-      }
-      update = { next_milestone: value };
-      confirmMsg = `Milestone di <b>${project.name}</b> aggiornata.`;
-      break;
-    }
-    case "notes": {
-      const value = rest.join(" ").trim();
-      update = { private_notes: value || null };
-      confirmMsg = `Note private di <b>${project.name}</b> aggiornate.`;
-      break;
-    }
-    case "private": {
-      const value = rest[0]?.toLowerCase();
-      if (value !== "true" && value !== "false") {
-        await sendTelegramMessage(
-          chatId,
-          "Uso: /update [id] private true|false"
-        );
-        return;
-      }
-      update = { is_private: value === "true" };
-      confirmMsg = `Visibilità di <b>${project.name}</b> → ${value === "true" ? "privato" : "pubblico"}`;
-      break;
-    }
-    case "company": {
-      const value = rest[0]?.toLowerCase();
-      if (value !== "true" && value !== "false") {
-        await sendTelegramMessage(
-          chatId,
-          "Uso: /update [id] company true|false"
-        );
-        return;
-      }
-      update = { is_company: value === "true" };
-      confirmMsg = `Flag aziendale di <b>${project.name}</b> → ${value === "true" ? "sì" : "no"}`;
-      break;
-    }
-    case "url": {
-      const urlField = rest[0];
-      const url = rest.slice(1).join(" ").trim();
-      const fieldMap: Record<string, string> = {
-        site: "url_site",
-        repo: "url_repo",
-        substack: "url_substack",
-      };
-      const dbField = fieldMap[urlField];
-      if (!dbField) {
-        await sendTelegramMessage(
-          chatId,
-          "Campo URL non valido. Usa: site, repo o substack."
-        );
-        return;
-      }
-      update = { [dbField]: url || null };
-      confirmMsg = `URL ${urlField} di <b>${project.name}</b> aggiornato.`;
-      break;
-    }
-    default:
-      await sendTelegramMessage(
-        chatId,
-        "Campo non riconosciuto. Usa: status, revenue, mrr, goal, prevmrr, launch, idea, buildstart, users, milestone, notes, private, company, url."
-      );
-      return;
-  }
-
-  const { error } = await supabase
-    .from("projects")
-    .update(update)
-    .eq("id", project.id);
-
-  if (error) throw error;
-  await sendTelegramMessage(chatId, `✓ ${confirmMsg}`);
+async function saveConversationHistory(
+  chatId: number,
+  messages: ConversationMessage[]
+): Promise<void> {
+  const trimmed = messages.slice(-20);
+  await setSession(chatId, "conversation", {
+    messages: trimmed,
+  } as unknown as WizardData);
 }
 
 function getProjectRoadmap(project: Project): RoadmapItem[] {
@@ -509,321 +437,560 @@ async function saveProjectRoadmap(
   if (error) throw error;
 }
 
-async function handleTimeline(chatId: number, args: string[]): Promise<void> {
-  if (args.length < 2) {
-    await sendTelegramMessage(
-      chatId,
-      "Uso: /timeline [id] add [type] [YYYY-MM-DD] [titolo]\nOppure: /timeline [id] list"
-    );
-    return;
+function normalizeProjectStatus(raw: string): ProjectStatus | null {
+  const value = raw.trim().toLowerCase();
+  if (value === "dead") return "archived";
+  if (PROJECT_STATUSES.includes(value as ProjectStatus)) {
+    return value as ProjectStatus;
   }
+  return null;
+}
 
-  const [idPrefix, action, ...rest] = args;
-  const project = await findProjectByIdPrefix(idPrefix);
-
-  if (!project) {
-    await sendTelegramMessage(chatId, `Progetto non trovato per id "${idPrefix}".`);
-    return;
-  }
-
+async function executeTool(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  _chatId: number
+): Promise<unknown> {
   const supabase = createServiceClient();
 
-  if (action === "list") {
-    const { data, error } = await supabase
-      .from("project_timeline")
-      .select("id, event_date, title, type")
-      .eq("project_id", project.id)
-      .order("event_date", { ascending: false });
+  switch (toolName) {
+    case "list_projects": {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id, name, status, total_revenue, mrr, users_count")
+        .order("order_index", { ascending: true });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    if (!data?.length) {
-      await sendTelegramMessage(
-        chatId,
-        `Nessun evento per <b>${project.name}</b>.`
+      return (data ?? []).map(
+        (p: {
+          id: string;
+          name: string;
+          status: string;
+          total_revenue: number;
+          mrr: number;
+          users_count: number;
+        }) => ({
+          id: p.id.slice(0, 8),
+          name: p.name,
+          status: p.status,
+          total_revenue: p.total_revenue,
+          mrr: p.mrr,
+          users_count: p.users_count,
+        })
       );
-      return;
     }
 
-    const lines = data.map(
-      (event: { id: string; event_date: string; title: string; type: string }) =>
-        `<code>${event.id.slice(0, 8)}</code> ${event.event_date} [${event.type}] ${event.title}`
-    );
-
-    await sendTelegramMessage(
-      chatId,
-      `<b>Timeline — ${project.name}</b>\n\n${lines.join("\n")}`
-    );
-    return;
-  }
-
-  if (action === "add") {
-    const [type, dateStr, ...titleParts] = rest;
-
-    if (!type || !dateStr || titleParts.length === 0) {
-      await sendTelegramMessage(
-        chatId,
-        `Uso: /timeline [id] add [type] [YYYY-MM-DD] [titolo]\nTipi: ${TIMELINE_EVENT_TYPES.join(", ")}`
-      );
-      return;
+    case "get_project": {
+      const idPrefix = String(toolInput.id_prefix ?? "");
+      const project = await findProjectByIdPrefix(idPrefix);
+      if (!project) {
+        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+      }
+      return project;
     }
 
-    if (!TIMELINE_EVENT_TYPES.includes(type as TimelineEventType)) {
-      await sendTelegramMessage(
-        chatId,
-        `Tipo non valido. Valori: ${TIMELINE_EVENT_TYPES.join(", ")}`
-      );
-      return;
+    case "update_project": {
+      const idPrefix = String(toolInput.id_prefix ?? "");
+      const field = String(toolInput.field ?? "").toLowerCase();
+      const value = String(toolInput.value ?? "");
+
+      const project = await findProjectByIdPrefix(idPrefix);
+      if (!project) {
+        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+      }
+
+      const fieldAliases: Record<string, string> = {
+        revenue: "total_revenue",
+        goal: "mrr_goal",
+        prevmrr: "mrr_prev",
+        launch: "launch_date",
+        idea: "idea_date",
+        buildstart: "build_start_date",
+        users: "users_count",
+        milestone: "next_milestone",
+        notes: "private_notes",
+        private: "is_private",
+        company: "is_company",
+      };
+
+      const dbField = fieldAliases[field] ?? field;
+      let update: Record<string, unknown> = {};
+
+      switch (dbField) {
+        case "status": {
+          const status = normalizeProjectStatus(value);
+          if (!status) {
+            throw new Error(
+              `Status non valido. Valori: ${PROJECT_STATUSES.join(", ")}`
+            );
+          }
+          update = { status };
+          break;
+        }
+        case "total_revenue":
+        case "mrr":
+        case "mrr_goal":
+        case "mrr_prev": {
+          const parsed = parseMrr(value);
+          if (parsed === null) {
+            throw new Error(
+              "Valore numerico non valido. Usa un numero ≥ 0 con punto decimale (es. 49.00)."
+            );
+          }
+          update = { [dbField]: parsed };
+          break;
+        }
+        case "launch_date":
+        case "idea_date":
+        case "build_start_date": {
+          const parsed = parseLaunchDate(value);
+          if (!parsed) {
+            throw new Error(
+              "Data non valida. Usa il formato YYYY-MM-DD (es. 2024-09-01)."
+            );
+          }
+          update = { [dbField]: parsed };
+          break;
+        }
+        case "users_count": {
+          const parsed = parseInt(value, 10);
+          if (isNaN(parsed) || parsed < 0) {
+            throw new Error("Utenti deve essere un numero intero ≥ 0.");
+          }
+          update = { users_count: parsed };
+          break;
+        }
+        case "next_milestone": {
+          const text = value.trim();
+          if (!text) throw new Error("Specifica il testo della milestone.");
+          update = { next_milestone: text };
+          break;
+        }
+        case "private_notes": {
+          update = { private_notes: value.trim() || null };
+          break;
+        }
+        case "is_private":
+        case "is_company": {
+          const parsed = parseYesNo(value);
+          if (parsed === null) {
+            throw new Error('Valore booleano non valido. Usa "true" o "false".');
+          }
+          update = { [dbField]: parsed };
+          break;
+        }
+        case "url_site":
+        case "url_repo":
+        case "url_substack": {
+          update = { [dbField]: value.trim() || null };
+          break;
+        }
+        default:
+          throw new Error(
+            "Campo non riconosciuto. Usa: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, is_private, is_company, url_site, url_repo, url_substack."
+          );
+      }
+
+      const { data: updated, error } = await supabase
+        .from("projects")
+        .update(update)
+        .eq("id", project.id)
+        .select("id, name")
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        project: updated.name,
+        id: updated.id.slice(0, 8),
+        field: dbField,
+        update,
+      };
     }
 
-    const eventDate = parseLaunchDate(dateStr);
-    if (!eventDate) {
-      await sendTelegramMessage(
-        chatId,
-        "Data non valida. Usa il formato YYYY-MM-DD."
-      );
-      return;
+    case "create_project": {
+      const name = String(toolInput.name ?? "").trim();
+      const tagline = String(toolInput.tagline ?? "").trim();
+      const status = normalizeProjectStatus(String(toolInput.status ?? ""));
+      const urlSiteRaw = toolInput.url_site
+        ? String(toolInput.url_site).trim()
+        : "";
+
+      if (!name) throw new Error("Il nome non può essere vuoto.");
+      if (!tagline) throw new Error("La tagline non può essere vuota.");
+      if (tagline.length > 80) {
+        throw new Error(
+          `Tagline troppo lunga (${tagline.length}/80). Accorciala.`
+        );
+      }
+      if (!status) {
+        throw new Error(
+          `Status non valido. Valori: ${PROJECT_STATUSES.join(", ")}`
+        );
+      }
+
+      const { data: maxOrder } = await supabase
+        .from("projects")
+        .select("order_index")
+        .order("order_index", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const orderIndex = (maxOrder?.order_index ?? 0) + 1;
+
+      const { data: created, error } = await supabase
+        .from("projects")
+        .insert({
+          name,
+          tagline,
+          status,
+          url_site: urlSiteRaw || null,
+          order_index: orderIndex,
+        })
+        .select("id, name, status")
+        .single();
+
+      if (error) throw error;
+
+      return {
+        id: created.id.slice(0, 8),
+        name: created.name,
+        status: created.status,
+      };
     }
 
-    const title = titleParts.join(" ").trim();
-    const { data: created, error } = await supabase
-      .from("project_timeline")
-      .insert({
-        project_id: project.id,
-        type,
-        event_date: eventDate,
+    case "delete_project": {
+      const idPrefix = String(toolInput.id_prefix ?? "");
+      const project = await findProjectByIdPrefix(idPrefix);
+      if (!project) {
+        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+      }
+
+      const { error } = await supabase
+        .from("projects")
+        .delete()
+        .eq("id", project.id);
+
+      if (error) throw error;
+
+      return { deleted: true, name: project.name, id: project.id.slice(0, 8) };
+    }
+
+    case "save_idea": {
+      const title = String(toolInput.title ?? "").trim();
+      const body = String(toolInput.body ?? "").trim();
+      const source = toolInput.source
+        ? String(toolInput.source).trim()
+        : null;
+
+      if (!title) throw new Error("Il titolo non può essere vuoto.");
+      if (!body) throw new Error("Il corpo dell'idea non può essere vuoto.");
+
+      let projectId: string | null = null;
+      if (toolInput.project_id_prefix) {
+        const project = await findProjectByIdPrefix(
+          String(toolInput.project_id_prefix)
+        );
+        if (!project) {
+          throw new Error(
+            `Progetto non trovato per id "${toolInput.project_id_prefix}".`
+          );
+        }
+        projectId = project.id;
+      }
+
+      const { data: created, error } = await supabase
+        .from("ideas")
+        .insert({
+          title,
+          body,
+          source,
+          project_id: projectId,
+        })
+        .select("id, title, created_at")
+        .single();
+
+      if (error) throw error;
+
+      return created;
+    }
+
+    case "list_ideas": {
+      let query = supabase
+        .from("ideas")
+        .select("id, title, body, source, status, project_id, created_at")
+        .order("created_at", { ascending: false });
+
+      if (toolInput.status) {
+        query = query.eq("status", String(toolInput.status));
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return data ?? [];
+    }
+
+    case "add_timeline_event": {
+      const idPrefix = String(toolInput.id_prefix ?? "");
+      const type = String(toolInput.type ?? "");
+      const date = String(toolInput.date ?? "");
+      const title = String(toolInput.title ?? "").trim();
+
+      const project = await findProjectByIdPrefix(idPrefix);
+      if (!project) {
+        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+      }
+
+      if (!TIMELINE_EVENT_TYPES.includes(type as TimelineEventType)) {
+        throw new Error(
+          `Tipo non valido. Valori: ${TIMELINE_EVENT_TYPES.join(", ")}`
+        );
+      }
+
+      const eventDate = parseLaunchDate(date);
+      if (!eventDate) {
+        throw new Error("Data non valida. Usa il formato YYYY-MM-DD.");
+      }
+
+      if (!title) throw new Error("Il titolo dell'evento non può essere vuoto.");
+
+      const { data: created, error } = await supabase
+        .from("project_timeline")
+        .insert({
+          project_id: project.id,
+          type,
+          event_date: eventDate,
+          title,
+        })
+        .select("id, title, type, event_date")
+        .single();
+
+      if (error) throw error;
+
+      return {
+        ...created,
+        id: created.id.slice(0, 8),
+        project: project.name,
+      };
+    }
+
+    case "list_timeline": {
+      const idPrefix = String(toolInput.id_prefix ?? "");
+      const project = await findProjectByIdPrefix(idPrefix);
+      if (!project) {
+        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+      }
+
+      const { data, error } = await supabase
+        .from("project_timeline")
+        .select("id, event_date, title, type")
+        .eq("project_id", project.id)
+        .order("event_date", { ascending: false });
+
+      if (error) throw error;
+
+      return {
+        project: project.name,
+        events: (data ?? []).map(
+          (event: {
+            id: string;
+            event_date: string;
+            title: string;
+            type: string;
+          }) => ({
+            id: event.id.slice(0, 8),
+            event_date: event.event_date,
+            title: event.title,
+            type: event.type,
+          })
+        ),
+      };
+    }
+
+    case "add_roadmap_item": {
+      const idPrefix = String(toolInput.id_prefix ?? "");
+      const priority = String(toolInput.priority ?? "");
+      const title = String(toolInput.title ?? "").trim();
+
+      const project = await findProjectByIdPrefix(idPrefix);
+      if (!project) {
+        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+      }
+
+      if (!ROADMAP_ITEM_PRIORITIES.includes(priority as RoadmapItemPriority)) {
+        throw new Error(
+          `Priorità non valida. Valori: ${ROADMAP_ITEM_PRIORITIES.join(", ")}`
+        );
+      }
+
+      if (!title) throw new Error("Il titolo non può essere vuoto.");
+
+      const roadmap = getProjectRoadmap(project);
+      const newItem: RoadmapItem = {
+        id: crypto.randomUUID(),
         title,
-      })
-      .select("id, title")
-      .single();
+        status: "todo",
+        priority: priority as RoadmapItemPriority,
+      };
 
-    if (error) throw error;
+      await saveProjectRoadmap(project.id, [...roadmap, newItem]);
 
-    await sendTelegramMessage(
-      chatId,
-      `✓ Evento aggiunto a <b>${project.name}</b>\n<code>${created.id.slice(0, 8)}</code> — ${created.title}`
-    );
-    return;
+      return {
+        project: project.name,
+        item: {
+          id: newItem.id.slice(0, 8),
+          title: newItem.title,
+          priority: newItem.priority,
+          status: newItem.status,
+        },
+      };
+    }
+
+    case "update_roadmap_item": {
+      const idPrefix = String(toolInput.id_prefix ?? "");
+      const itemIdPrefix = String(toolInput.item_id_prefix ?? "");
+      const status = String(toolInput.status ?? "") as RoadmapItemStatus;
+
+      const project = await findProjectByIdPrefix(idPrefix);
+      if (!project) {
+        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+      }
+
+      if (!["todo", "in_progress", "done"].includes(status)) {
+        throw new Error("Status non valido. Valori: todo, in_progress, done.");
+      }
+
+      const roadmap = getProjectRoadmap(project);
+      const item = findRoadmapItemByPrefix(roadmap, itemIdPrefix);
+      if (!item) {
+        throw new Error(`Item roadmap non trovato per id "${itemIdPrefix}".`);
+      }
+
+      const updated = roadmap.map((entry) =>
+        entry.id === item.id ? { ...entry, status } : entry
+      );
+
+      await saveProjectRoadmap(project.id, updated);
+
+      return {
+        project: project.name,
+        item: { id: item.id.slice(0, 8), title: item.title, status },
+      };
+    }
+
+    case "list_roadmap": {
+      const idPrefix = String(toolInput.id_prefix ?? "");
+      const project = await findProjectByIdPrefix(idPrefix);
+      if (!project) {
+        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+      }
+
+      const roadmap = getProjectRoadmap(project);
+
+      return {
+        project: project.name,
+        items: roadmap.map((item) => ({
+          id: item.id.slice(0, 8),
+          title: item.title,
+          status: item.status,
+          priority: item.priority,
+        })),
+      };
+    }
+
+    default:
+      throw new Error(`Tool sconosciuto: ${toolName}`);
   }
-
-  await sendTelegramMessage(chatId, "Azione non riconosciuta. Usa: add, list.");
 }
 
-async function handleRoadmap(chatId: number, args: string[]): Promise<void> {
-  if (args.length < 2) {
-    await sendTelegramMessage(
-      chatId,
-      "Uso: /roadmap [id] add|done|wip|list ..."
-    );
-    return;
-  }
+async function runClaudeWithTools(
+  chatId: number,
+  userMessage: string
+): Promise<string> {
+  const history = await getConversationHistory(chatId);
 
-  const [idPrefix, action, ...rest] = args;
-  const project = await findProjectByIdPrefix(idPrefix);
+  const messages = [
+    ...history.map((m) => ({ role: m.role, content: m.content })),
+    { role: "user" as const, content: userMessage },
+  ];
 
-  if (!project) {
-    await sendTelegramMessage(chatId, `Progetto non trovato per id "${idPrefix}".`);
-    return;
-  }
+  const Anthropic = (await import("@anthropic-ai/sdk")).default;
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  const roadmap = getProjectRoadmap(project);
+  let currentMessages = [...messages];
 
-  if (action === "list") {
-    if (roadmap.length === 0) {
-      await sendTelegramMessage(
-        chatId,
-        `Roadmap vuota per <b>${project.name}</b>.`
+  while (true) {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT,
+      tools: TOOLS as Parameters<typeof client.messages.create>[0]["tools"],
+      messages: currentMessages,
+    });
+
+    if (response.stop_reason === "end_turn") {
+      const textBlock = response.content.find((b) => b.type === "text");
+      const finalText =
+        textBlock?.type === "text" ? textBlock.text : "Fatto.";
+
+      const updatedHistory: ConversationMessage[] = [
+        ...history,
+        { role: "user", content: userMessage },
+        { role: "assistant", content: finalText },
+      ];
+      await saveConversationHistory(chatId, updatedHistory);
+
+      return finalText;
+    }
+
+    if (response.stop_reason === "tool_use") {
+      currentMessages.push({
+        role: "assistant",
+        content: response.content as never,
+      });
+
+      const toolResults = await Promise.all(
+        response.content
+          .filter((b) => b.type === "tool_use")
+          .map(async (block) => {
+            if (block.type !== "tool_use") return null;
+            try {
+              const result = await executeTool(
+                block.name,
+                block.input as Record<string, unknown>,
+                chatId
+              );
+              return {
+                type: "tool_result" as const,
+                tool_use_id: block.id,
+                content: JSON.stringify(result),
+              };
+            } catch (err) {
+              return {
+                type: "tool_result" as const,
+                tool_use_id: block.id,
+                content: `Errore: ${err instanceof Error ? err.message : "errore sconosciuto"}`,
+                is_error: true,
+              };
+            }
+          })
       );
-      return;
+
+      currentMessages.push({
+        role: "user",
+        content: toolResults.filter(Boolean) as never,
+      });
+
+      continue;
     }
 
-    const lines = roadmap.map(
-      (item) =>
-        `<code>${item.id.slice(0, 8)}</code> [${item.status}] ${item.priority} — ${item.title}`
-    );
-
-    await sendTelegramMessage(
-      chatId,
-      `<b>Roadmap — ${project.name}</b>\n\n${lines.join("\n")}`
-    );
-    return;
+    break;
   }
 
-  if (action === "add") {
-    const [priority, ...titleParts] = rest;
-
-    if (!priority || titleParts.length === 0) {
-      await sendTelegramMessage(
-        chatId,
-        `Uso: /roadmap [id] add [priority] [titolo]\nPriorità: ${ROADMAP_ITEM_PRIORITIES.join(", ")}`
-      );
-      return;
-    }
-
-    if (!ROADMAP_ITEM_PRIORITIES.includes(priority as RoadmapItemPriority)) {
-      await sendTelegramMessage(
-        chatId,
-        `Priorità non valida. Valori: ${ROADMAP_ITEM_PRIORITIES.join(", ")}`
-      );
-      return;
-    }
-
-    const title = titleParts.join(" ").trim();
-    const newItem: RoadmapItem = {
-      id: crypto.randomUUID(),
-      title,
-      status: "todo",
-      priority: priority as RoadmapItemPriority,
-    };
-
-    await saveProjectRoadmap(project.id, [...roadmap, newItem]);
-    await sendTelegramMessage(
-      chatId,
-      `✓ Item roadmap aggiunto a <b>${project.name}</b>\n<code>${newItem.id.slice(0, 8)}</code> — ${newItem.title}`
-    );
-    return;
-  }
-
-  if (action === "done" || action === "wip") {
-    const itemPrefix = rest[0];
-    if (!itemPrefix) {
-      await sendTelegramMessage(
-        chatId,
-        `Uso: /roadmap [id] ${action} [item_id_parziale]`
-      );
-      return;
-    }
-
-    let item: RoadmapItem | null;
-    try {
-      item = findRoadmapItemByPrefix(roadmap, itemPrefix);
-    } catch (err) {
-      await sendTelegramMessage(
-        chatId,
-        err instanceof Error ? err.message : "ID roadmap ambiguo."
-      );
-      return;
-    }
-
-    if (!item) {
-      await sendTelegramMessage(
-        chatId,
-        `Item roadmap non trovato per id "${itemPrefix}".`
-      );
-      return;
-    }
-
-    const newStatus: RoadmapItemStatus =
-      action === "done" ? "done" : "in_progress";
-
-    const updated = roadmap.map((entry) =>
-      entry.id === item!.id ? { ...entry, status: newStatus } : entry
-    );
-
-    await saveProjectRoadmap(project.id, updated);
-    await sendTelegramMessage(
-      chatId,
-      `✓ <b>${item.title}</b> → ${newStatus}`
-    );
-    return;
-  }
-
-  await sendTelegramMessage(
-    chatId,
-    "Azione non riconosciuta. Usa: add, done, wip, list."
-  );
-}
-
-async function handleDelete(chatId: number, args: string[]): Promise<void> {
-  const [idPrefix] = args;
-
-  if (!idPrefix) {
-    await sendTelegramMessage(chatId, "Uso: /delete [id]");
-    return;
-  }
-
-  const project = await findProjectByIdPrefix(idPrefix);
-
-  if (!project) {
-    await sendTelegramMessage(chatId, `Progetto non trovato per id "${idPrefix}".`);
-    return;
-  }
-
-  await sendTelegramMessage(
-    chatId,
-    `Sei sicuro di eliminare <b>${project.name}</b>?\nRispondi <code>/confirm ${project.id.slice(0, 8)}</code>`
-  );
-}
-
-async function handleConfirm(chatId: number, args: string[]): Promise<void> {
-  const [idPrefix] = args;
-
-  if (!idPrefix) {
-    await sendTelegramMessage(chatId, "Uso: /confirm [id]");
-    return;
-  }
-
-  const project = await findProjectByIdPrefix(idPrefix);
-
-  if (!project) {
-    await sendTelegramMessage(chatId, `Progetto non trovato per id "${idPrefix}".`);
-    return;
-  }
-
-  const supabase = createServiceClient();
-  const { error } = await supabase.from("projects").delete().eq("id", project.id);
-
-  if (error) throw error;
-
-  await sendTelegramMessage(
-    chatId,
-    `✓ Progetto <b>${project.name}</b> eliminato.`
-  );
-}
-
-async function handleAddStart(chatId: number): Promise<void> {
-  await setSession(chatId, "name", {});
-  await sendTelegramMessage(
-    chatId,
-    "Nuovo progetto — invia il <b>nome</b>:\n(/cancel per annullare)"
-  );
-}
-
-async function handleEditStart(chatId: number, args: string[]): Promise<void> {
-  const [idPrefix] = args;
-
-  if (!idPrefix) {
-    await sendTelegramMessage(chatId, "Uso: /edit [id]");
-    return;
-  }
-
-  const project = await findProjectByIdPrefix(idPrefix);
-
-  if (!project) {
-    await sendTelegramMessage(chatId, `Progetto non trovato per id "${idPrefix}".`);
-    return;
-  }
-
-  await setSession(chatId, "edit_private", {
-    project_id: project.id,
-    is_private: project.is_private,
-    is_company: project.is_company,
-  });
-
-  await sendTelegramMessage(
-    chatId,
-    `Modifica <b>${project.name}</b>\n\nQuesto progetto è privato? (sì/no)\n(/cancel per annullare)`,
-    {
-      inline_keyboard: [
-        [
-          {
-            text: `Aziendale: ${project.is_company ? "✅" : "❌"}`,
-            callback_data: `toggle_company:${project.id.slice(0, 8)}`,
-          },
-        ],
-      ],
-    }
-  );
+  return "Non ho capito. Puoi ripetere?";
 }
 
 async function handleToggleCompany(
@@ -844,18 +1011,6 @@ async function handleToggleCompany(
     .eq("id", project.id);
 
   if (error) throw error;
-
-  const session = await getSession(chatId);
-  if (
-    session &&
-    session.data.project_id === project.id &&
-    (session.step === "edit_private" || session.step === "edit_company")
-  ) {
-    await setSession(chatId, session.step, {
-      ...session.data,
-      is_company: newValue,
-    });
-  }
 
   return `<b>${project.name}</b> — Aziendale: ${newValue ? "sì ✅" : "no ❌"}`;
 }
@@ -892,154 +1047,6 @@ export async function handleTelegramCallback(
   }
 }
 
-async function handleWizardInput(
-  chatId: number,
-  text: string,
-  session: TelegramSession
-): Promise<void> {
-  const data = { ...session.data };
-
-  switch (session.step) {
-    case "name": {
-      if (!text.trim()) {
-        await sendTelegramMessage(chatId, "Il nome non può essere vuoto.");
-        return;
-      }
-      data.name = text.trim();
-      await setSession(chatId, "tagline", data);
-      await sendTelegramMessage(
-        chatId,
-        "Invia la <b>tagline</b> (max 80 caratteri):"
-      );
-      break;
-    }
-    case "tagline": {
-      const tagline = text.trim();
-      if (!tagline) {
-        await sendTelegramMessage(chatId, "La tagline non può essere vuota.");
-        return;
-      }
-      if (tagline.length > 80) {
-        await sendTelegramMessage(
-          chatId,
-          `Tagline troppo lunga (${tagline.length}/80). Accorciala.`
-        );
-        return;
-      }
-      data.tagline = tagline;
-      await setSession(chatId, "status", data);
-      await sendTelegramMessage(
-        chatId,
-        `Invia lo <b>status</b>:\n${PROJECT_STATUSES.join(" | ")}`
-      );
-      break;
-    }
-    case "status": {
-      const status = text.trim().toLowerCase() as ProjectStatus;
-      if (!PROJECT_STATUSES.includes(status)) {
-        await sendTelegramMessage(
-          chatId,
-          `Status non valido. Valori: ${PROJECT_STATUSES.join(", ")}`
-        );
-        return;
-      }
-      data.status = status;
-      await setSession(chatId, "url_site", data);
-      await sendTelegramMessage(
-        chatId,
-        "Invia l'URL del sito (o <b>-</b> per saltare):"
-      );
-      break;
-    }
-    case "url_site": {
-      const url = text.trim();
-      const urlSite = url === "-" ? null : url;
-
-      const supabase = createServiceClient();
-
-      const { data: maxOrder } = await supabase
-        .from("projects")
-        .select("order_index")
-        .order("order_index", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const orderIndex = (maxOrder?.order_index ?? 0) + 1;
-
-      const { data: created, error } = await supabase
-        .from("projects")
-        .insert({
-          name: data.name,
-          tagline: data.tagline,
-          status: data.status,
-          url_site: urlSite,
-          order_index: orderIndex,
-        })
-        .select("id, name")
-        .single();
-
-      if (error) throw error;
-
-      await clearSession(chatId);
-      await sendTelegramMessage(
-        chatId,
-        `✓ Progetto <b>${created.name}</b> creato.\n<code>${created.id.slice(0, 8)}</code>`
-      );
-      break;
-    }
-    case "edit_private": {
-      const isPrivate = parseYesNo(text);
-      if (isPrivate === null) {
-        await sendTelegramMessage(chatId, "Risposta non valida. Usa sì o no.");
-        return;
-      }
-      data.is_private = isPrivate;
-      await setSession(chatId, "edit_company", data);
-      await sendTelegramMessage(
-        chatId,
-        "Questo progetto è aziendale? (sì/no)"
-      );
-      break;
-    }
-    case "edit_company": {
-      const isCompany = parseYesNo(text);
-      if (isCompany === null) {
-        await sendTelegramMessage(chatId, "Risposta non valida. Usa sì o no.");
-        return;
-      }
-
-      if (!data.project_id) {
-        await clearSession(chatId);
-        await sendTelegramMessage(chatId, "Sessione non valida. Riprova con /edit.");
-        return;
-      }
-
-      const supabase = createServiceClient();
-      const { data: updated, error } = await supabase
-        .from("projects")
-        .update({
-          is_private: data.is_private,
-          is_company: isCompany,
-        })
-        .eq("id", data.project_id)
-        .select("name, is_private, is_company")
-        .single();
-
-      if (error) throw error;
-
-      await clearSession(chatId);
-      await sendTelegramMessage(
-        chatId,
-        `✓ <b>${updated.name}</b> aggiornato.\nPrivato: ${updated.is_private ? "sì" : "no"}\nAziendale: ${updated.is_company ? "sì" : "no"}`
-      );
-      break;
-    }
-    default:
-      await clearSession(chatId);
-      await sendTelegramMessage(chatId, "Sessione non valida. Riprova con /add.");
-  }
-}
-
 export async function handleTelegramUpdate(
   userId: number,
   chatId: number,
@@ -1051,67 +1058,23 @@ export async function handleTelegramUpdate(
   }
 
   const trimmed = text.trim();
-  const session = await getSession(chatId);
-
-  if (session && !trimmed.startsWith("/")) {
-    await handleWizardInput(chatId, trimmed, session);
+  if (
+    trimmed.toLowerCase() === "reset" ||
+    trimmed.toLowerCase() === "/reset"
+  ) {
+    await clearSession(chatId);
+    await sendTelegramMessage(chatId, "Conversazione resettata.");
     return;
   }
 
-  if (session && trimmed.startsWith("/") && trimmed !== "/cancel") {
+  try {
+    const response = await runClaudeWithTools(chatId, text);
+    await sendTelegramMessage(chatId, response);
+  } catch (error) {
+    console.error("Claude bot error:", error);
     await sendTelegramMessage(
       chatId,
-      "Wizard in corso. Completa i passaggi o invia /cancel."
+      "Errore interno. Riprova tra qualche secondo."
     );
-    return;
-  }
-
-  const [command, ...args] = trimmed.split(/\s+/);
-  const cmd = command.toLowerCase().split("@")[0];
-
-  switch (cmd) {
-    case "/start":
-    case "/help":
-      await sendTelegramMessage(chatId, HELP_TEXT);
-      break;
-    case "/list":
-      await handleList(chatId);
-      break;
-    case "/update":
-      await handleUpdate(chatId, args);
-      break;
-    case "/timeline":
-      await handleTimeline(chatId, args);
-      break;
-    case "/roadmap":
-      await handleRoadmap(chatId, args);
-      break;
-    case "/add":
-      await handleAddStart(chatId);
-      break;
-    case "/edit":
-      await handleEditStart(chatId, args);
-      break;
-    case "/delete":
-      await handleDelete(chatId, args);
-      break;
-    case "/confirm":
-      await handleConfirm(chatId, args);
-      break;
-    case "/cancel":
-      if (session) {
-        await clearSession(chatId);
-        await sendTelegramMessage(chatId, "Wizard annullato.");
-      } else {
-        await sendTelegramMessage(chatId, "Nessun wizard in corso.");
-      }
-      break;
-    default:
-      if (trimmed.startsWith("/")) {
-        await sendTelegramMessage(
-          chatId,
-          "Comando non riconosciuto. Invia /help per la lista."
-        );
-      }
   }
 }
