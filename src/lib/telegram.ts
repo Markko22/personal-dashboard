@@ -52,6 +52,7 @@ Regole:
 - Se non capisci a quale progetto si riferisce, chiedi con una domanda corta
 - Date in formato italiano (es. "1 luglio 2026") convertile in YYYY-MM-DD prima di passarle ai tool
 - Se Marco chiede "cosa puoi fare?" descrivi le capacità in linguaggio naturale, non lista comandi
+- Non impostare mai is_private = true a meno che l'utente non usi esplicitamente le parole 'privato', 'nascosto' o 'non pubblico'. 'Personale' non significa privato.
 `;
 
 const TOOLS = [
@@ -604,13 +605,14 @@ async function executeTool(
         }
         case "is_private":
         case "is_company": {
-          const parsed = parseYesNo(value);
-          if (parsed === null) {
-            return {
-              error: 'Valore booleano non valido. Usa "true" o "false".',
-            };
-          }
-          update = { [dbField]: parsed };
+          update = {
+            [dbField]:
+              value === "true" ||
+              value === "si" ||
+              value === "sì" ||
+              value === "1" ||
+              value === "yes",
+          };
           break;
         }
         case "url_site":
