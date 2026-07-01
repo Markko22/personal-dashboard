@@ -511,21 +511,37 @@ async function executeTool(
         throw new Error(`Progetto non trovato per id "${idPrefix}".`);
       }
 
-      const fieldAliases: Record<string, string> = {
+      const fieldMap: Record<string, string> = {
+        status: "status",
         revenue: "total_revenue",
+        total_revenue: "total_revenue",
+        mrr: "mrr",
         goal: "mrr_goal",
+        mrr_goal: "mrr_goal",
         prevmrr: "mrr_prev",
-        launch: "launch_date",
-        idea: "idea_date",
-        buildstart: "build_start_date",
+        mrr_prev: "mrr_prev",
+        launch_date: "launch_date",
+        idea_date: "idea_date",
+        build_start_date: "build_start_date",
+        users_count: "users_count",
         users: "users_count",
+        next_milestone: "next_milestone",
         milestone: "next_milestone",
+        private_notes: "private_notes",
         notes: "private_notes",
-        private: "is_private",
-        company: "is_company",
+        is_private: "is_private",
+        is_company: "is_company",
+        url_site: "url_site",
+        url_repo: "url_repo",
+        url_substack: "url_substack",
       };
 
-      const dbField = fieldAliases[field] ?? field;
+      const dbField = fieldMap[field];
+      if (!dbField) {
+        throw new Error(
+          "Campo non riconosciuto. Usa: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, is_private, is_company, url_site, url_repo, url_substack."
+        );
+      }
       let update: Record<string, unknown> = {};
 
       switch (dbField) {
