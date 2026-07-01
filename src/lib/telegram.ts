@@ -688,7 +688,12 @@ async function executeTool(
         .select("id, name, status")
         .single();
 
-      if (error) return { error: `Errore creazione: ${error.message}` };
+      if (error) {
+        console.error("create_project error:", JSON.stringify(error));
+        return {
+          error: `Errore DB: ${error.message} (code: ${error.code})`,
+        };
+      }
 
       return {
         success: true,
