@@ -12,7 +12,7 @@ import StatusBadge from "./StatusBadge";
 function getCardBackground(status: ProjectStatus): string {
   switch (status) {
     case "live":
-      return "bg-green-500/10 border-green-500/30";
+      return "bg-emerald-400/20 border-emerald-400/50";
     case "building":
       return "bg-yellow-500/10 border-yellow-500/30";
     case "beta":
