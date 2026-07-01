@@ -163,20 +163,6 @@ const eurFormatter = new Intl.NumberFormat("it-IT", {
   maximumFractionDigits: 2,
 });
 
-export function calculateMrr(
-  totalRevenue: number,
-  launchDate: string | null
-): number {
-  if (!launchDate || totalRevenue === 0) return 0;
-  const launch = new Date(launchDate);
-  const now = new Date();
-  const monthsElapsed =
-    (now.getFullYear() - launch.getFullYear()) * 12 +
-    (now.getMonth() - launch.getMonth());
-  const months = Math.max(monthsElapsed, 1);
-  return Math.round((totalRevenue / months) * 100) / 100;
-}
-
 export function formatMrr(mrr: number): string {
   if (mrr <= 0) return "—";
   return eurFormatter.format(mrr);
