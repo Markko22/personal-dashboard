@@ -463,16 +463,17 @@ async function executeTool(
   toolName: string,
   toolInput: Record<string, unknown>
 ): Promise<unknown> {
-  const supabase = createServiceClient();
+  try {
+    const supabase = createServiceClient();
 
-  switch (toolName) {
+    switch (toolName) {
     case "list_projects": {
       const { data, error } = await supabase
         .from("projects")
         .select("id, name, status, total_revenue, mrr, users_count")
         .order("order_index", { ascending: true });
 
-      if (error) throw error;
+      if (error) return { error: error.message };
 
       return (data ?? []).map(
         (p: {
@@ -508,7 +509,7 @@ async function executeTool(
 
       const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
-        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+        return { error: `Progetto non trovato per id "${idPrefix}".` };
       }
 
       const fieldMap: Record<string, string> = {
@@ -538,9 +539,10 @@ async function executeTool(
 
       const dbField = fieldMap[field];
       if (!dbField) {
-        throw new Error(
-          "Campo non riconosciuto. Usa: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, is_private, is_company, url_site, url_repo, url_substack."
-        );
+        return {
+          error:
+            "Campo non riconosciuto. Usa: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, is_private, is_company, url_site, url_repo, url_substack.",
+        };
       }
       let update: Record<string, unknown> = {};
 
@@ -548,9 +550,9 @@ async function executeTool(
         case "status": {
           const status = normalizeProjectStatus(value);
           if (!status) {
-            throw new Error(
-              `Status non valido. Valori: ${PROJECT_STATUSES.join(", ")}`
-            );
+            return {
+              error: `Status non valido. Valori: ${PROJECT_STATUSES.join(", ")}`,
+            };
           }
           update = { status };
           break;
@@ -561,9 +563,10 @@ async function executeTool(
         case "mrr_prev": {
           const parsed = parseMrr(value);
           if (parsed === null) {
-            throw new Error(
-              "Valore numerico non valido. Usa un numero ≥ 0 con punto decimale (es. 49.00)."
-            );
+            return {
+              error:
+                "Valore numerico non valido. Usa un numero ≥ 0 con punto decimale (es. 49.00).",
+            };
           }
           update = { [dbField]: parsed };
           break;
@@ -573,9 +576,10 @@ async function executeTool(
         case "build_start_date": {
           const parsed = parseLaunchDate(value);
           if (!parsed) {
-            throw new Error(
-              "Data non valida. Usa il formato YYYY-MM-DD (es. 2024-09-01)."
-            );
+            return {
+              error:
+                "Data non valida. Usa il formato YYYY-MM-DD (es. 2024-09-01).",
+            };
           }
           update = { [dbField]: parsed };
           break;
@@ -583,14 +587,14 @@ async function executeTool(
         case "users_count": {
           const parsed = parseInt(value, 10);
           if (isNaN(parsed) || parsed < 0) {
-            throw new Error("Utenti deve essere un numero intero ≥ 0.");
+            return { error: "Utenti deve essere un numero intero ≥ 0." };
           }
           update = { users_count: parsed };
           break;
         }
         case "next_milestone": {
           const text = value.trim();
-          if (!text) throw new Error("Specifica il testo della milestone.");
+          if (!text) return { error: "Specifica il testo della milestone." };
           update = { next_milestone: text };
           break;
         }
@@ -602,7 +606,9 @@ async function executeTool(
         case "is_company": {
           const parsed = parseYesNo(value);
           if (parsed === null) {
-            throw new Error('Valore booleano non valido. Usa "true" o "false".');
+            return {
+              error: 'Valore booleano non valido. Usa "true" o "false".',
+            };
           }
           update = { [dbField]: parsed };
           break;
@@ -614,9 +620,10 @@ async function executeTool(
           break;
         }
         default:
-          throw new Error(
-            "Campo non riconosciuto. Usa: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, is_private, is_company, url_site, url_repo, url_substack."
-          );
+          return {
+            error:
+              "Campo non riconosciuto. Usa: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, is_private, is_company, url_site, url_repo, url_substack.",
+          };
       }
 
       const { data: updated, error } = await supabase
@@ -626,7 +633,7 @@ async function executeTool(
         .select("id, name")
         .single();
 
-      if (error) throw error;
+      if (error) return { error: `Errore aggiornamento: ${error.message}` };
 
       return {
         success: true,
@@ -645,17 +652,19 @@ async function executeTool(
         ? String(toolInput.url_site).trim()
         : "";
 
-      if (!name) throw new Error("Il nome non può essere vuoto.");
-      if (!tagline) throw new Error("La tagline non può essere vuota.");
+      if (!name) return { error: "Il nome non può essere vuoto." };
+      if (!tagline?.trim()) {
+        return { error: "tagline obbligatoria per creare un progetto" };
+      }
       if (tagline.length > 80) {
-        throw new Error(
-          `Tagline troppo lunga (${tagline.length}/80). Accorciala.`
-        );
+        return {
+          error: `Tagline troppo lunga (${tagline.length}/80). Accorciala.`,
+        };
       }
       if (!status) {
-        throw new Error(
-          `Status non valido. Valori: ${PROJECT_STATUSES.join(", ")}`
-        );
+        return {
+          error: `Status non valido. Valori: ${PROJECT_STATUSES.join(", ")}`,
+        };
       }
 
       const { data: maxOrder } = await supabase
@@ -679,12 +688,12 @@ async function executeTool(
         .select("id, name, status")
         .single();
 
-      if (error) throw error;
+      if (error) return { error: `Errore creazione: ${error.message}` };
 
       return {
+        success: true,
         id: created.id.slice(0, 8),
         name: created.name,
-        status: created.status,
       };
     }
 
@@ -692,7 +701,7 @@ async function executeTool(
       const idPrefix = String(toolInput.id_prefix ?? "");
       const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
-        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+        return { error: `Progetto non trovato per id "${idPrefix}".` };
       }
 
       const { error } = await supabase
@@ -700,7 +709,7 @@ async function executeTool(
         .delete()
         .eq("id", project.id);
 
-      if (error) throw error;
+      if (error) return { error: `Errore eliminazione: ${error.message}` };
 
       return { deleted: true, name: project.name, id: project.id.slice(0, 8) };
     }
@@ -712,8 +721,8 @@ async function executeTool(
         ? String(toolInput.source).trim()
         : null;
 
-      if (!title) throw new Error("Il titolo non può essere vuoto.");
-      if (!body) throw new Error("Il corpo dell'idea non può essere vuoto.");
+      if (!title) return { error: "Il titolo non può essere vuoto." };
+      if (!body) return { error: "Il corpo dell'idea non può essere vuoto." };
 
       let projectId: string | null = null;
       if (toolInput.project_id_prefix) {
@@ -721,9 +730,9 @@ async function executeTool(
           String(toolInput.project_id_prefix)
         );
         if (!project) {
-          throw new Error(
-            `Progetto non trovato per id "${toolInput.project_id_prefix}".`
-          );
+          return {
+            error: `Progetto non trovato per id "${toolInput.project_id_prefix}".`,
+          };
         }
         projectId = project.id;
       }
@@ -739,7 +748,7 @@ async function executeTool(
         .select("id, title, created_at")
         .single();
 
-      if (error) throw error;
+      if (error) return { error: `Errore salvataggio idea: ${error.message}` };
 
       return created;
     }
@@ -755,7 +764,7 @@ async function executeTool(
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) return { error: error.message };
 
       return data ?? [];
     }
@@ -768,21 +777,23 @@ async function executeTool(
 
       const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
-        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+        return { error: `Progetto non trovato per id "${idPrefix}".` };
       }
 
       if (!TIMELINE_EVENT_TYPES.includes(type as TimelineEventType)) {
-        throw new Error(
-          `Tipo non valido. Valori: ${TIMELINE_EVENT_TYPES.join(", ")}`
-        );
+        return {
+          error: `Tipo non valido. Valori: ${TIMELINE_EVENT_TYPES.join(", ")}`,
+        };
       }
 
       const eventDate = parseLaunchDate(date);
       if (!eventDate) {
-        throw new Error("Data non valida. Usa il formato YYYY-MM-DD.");
+        return { error: "Data non valida. Usa il formato YYYY-MM-DD." };
       }
 
-      if (!title) throw new Error("Il titolo dell'evento non può essere vuoto.");
+      if (!title) {
+        return { error: "Il titolo dell'evento non può essere vuoto." };
+      }
 
       const { data: created, error } = await supabase
         .from("project_timeline")
@@ -795,7 +806,9 @@ async function executeTool(
         .select("id, title, type, event_date")
         .single();
 
-      if (error) throw error;
+      if (error) {
+        return { error: `Errore creazione evento: ${error.message}` };
+      }
 
       return {
         ...created,
@@ -808,7 +821,7 @@ async function executeTool(
       const idPrefix = String(toolInput.id_prefix ?? "");
       const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
-        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+        return { error: `Progetto non trovato per id "${idPrefix}".` };
       }
 
       const { data, error } = await supabase
@@ -817,7 +830,7 @@ async function executeTool(
         .eq("project_id", project.id)
         .order("event_date", { ascending: false });
 
-      if (error) throw error;
+      if (error) return { error: error.message };
 
       return {
         project: project.name,
@@ -844,16 +857,16 @@ async function executeTool(
 
       const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
-        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+        return { error: `Progetto non trovato per id "${idPrefix}".` };
       }
 
       if (!ROADMAP_ITEM_PRIORITIES.includes(priority as RoadmapItemPriority)) {
-        throw new Error(
-          `Priorità non valida. Valori: ${ROADMAP_ITEM_PRIORITIES.join(", ")}`
-        );
+        return {
+          error: `Priorità non valida. Valori: ${ROADMAP_ITEM_PRIORITIES.join(", ")}`,
+        };
       }
 
-      if (!title) throw new Error("Il titolo non può essere vuoto.");
+      if (!title) return { error: "Il titolo non può essere vuoto." };
 
       const roadmap = getProjectRoadmap(project);
       const newItem: RoadmapItem = {
@@ -883,17 +896,21 @@ async function executeTool(
 
       const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
-        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+        return { error: `Progetto non trovato per id "${idPrefix}".` };
       }
 
       if (!["todo", "in_progress", "done"].includes(status)) {
-        throw new Error("Status non valido. Valori: todo, in_progress, done.");
+        return {
+          error: "Status non valido. Valori: todo, in_progress, done.",
+        };
       }
 
       const roadmap = getProjectRoadmap(project);
       const item = findRoadmapItemByPrefix(roadmap, itemIdPrefix);
       if (!item) {
-        throw new Error(`Item roadmap non trovato per id "${itemIdPrefix}".`);
+        return {
+          error: `Item roadmap non trovato per id "${itemIdPrefix}".`,
+        };
       }
 
       const updated = roadmap.map((entry) =>
@@ -912,7 +929,7 @@ async function executeTool(
       const idPrefix = String(toolInput.id_prefix ?? "");
       const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
-        throw new Error(`Progetto non trovato per id "${idPrefix}".`);
+        return { error: `Progetto non trovato per id "${idPrefix}".` };
       }
 
       const roadmap = getProjectRoadmap(project);
@@ -929,7 +946,12 @@ async function executeTool(
     }
 
     default:
-      throw new Error(`Tool sconosciuto: ${toolName}`);
+      return { error: `Tool sconosciuto: ${toolName}` };
+    }
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "errore sconosciuto",
+    };
   }
 }
 
