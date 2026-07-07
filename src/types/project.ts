@@ -1,3 +1,6 @@
+export const PROJECT_CATEGORIES = ["aziendale", "personale"] as const;
+export type ProjectCategory = (typeof PROJECT_CATEGORIES)[number];
+
 export const PROJECT_STATUSES = [
   "idea",
   "building",
@@ -43,7 +46,7 @@ export type RoadmapItem = {
   priority: RoadmapItemPriority;
 };
 
-/** Full row — server/admin only. Never expose private_notes to the client. */
+/** Full row — server/admin only. */
 export type Project = {
   id: string;
   name: string;
@@ -63,8 +66,7 @@ export type Project = {
   url_repo: string | null;
   url_substack: string | null;
   private_notes: string | null;
-  is_private: boolean;
-  is_company: boolean;
+  category: ProjectCategory;
   roadmap: RoadmapItem[];
   order_index: number;
   created_at: string;
@@ -74,39 +76,40 @@ export type Project = {
 /** Full project row for authenticated private view (service role). */
 export type PrivateProject = Project;
 
-/** Safe subset for frontend — no private_notes or is_private. */
-export type PublicProject = {
+/** Safe subset from projects_aziendali_safe — no sensitive fields. */
+export type AziendaleProject = {
   id: string;
   name: string;
   tagline: string;
   status: ProjectStatus;
   next_milestone: string | null;
-  mrr: number;
-  mrr_goal: number;
-  mrr_prev: number;
-  total_revenue: number;
-  launch_date: string | null;
-  idea_date: string | null;
-  build_start_date: string | null;
-  users_count: number;
   stack: string[];
   url_site: string | null;
-  url_repo: string | null;
-  url_substack: string | null;
-  is_company: boolean;
-  roadmap: RoadmapItem[];
   order_index: number;
-  created_at: string;
-  updated_at: string;
 };
 
-export const PUBLIC_PROJECT_COLUMNS =
-  "id, name, tagline, status, next_milestone, mrr, mrr_goal, mrr_prev, total_revenue, launch_date, idea_date, build_start_date, users_count, stack, url_site, url_repo, url_substack, is_company, roadmap, order_index, created_at, updated_at";
+export const AZIENDALE_PROJECT_COLUMNS =
+  "id, name, tagline, status, next_milestone, stack, url_site, order_index";
 
-export const PRIVATE_PROJECT_COLUMNS = `${PUBLIC_PROJECT_COLUMNS}, private_notes, is_private`;
+export const PRIVATE_PROJECT_COLUMNS =
+  "id, name, tagline, status, next_milestone, mrr, mrr_goal, mrr_prev, total_revenue, launch_date, idea_date, build_start_date, users_count, stack, url_site, url_repo, url_substack, category, roadmap, order_index, created_at, updated_at, private_notes";
 
-/** Strip private_notes and is_private from a DB row (e.g. Realtime payload). */
-export function toPublicProject(row: Record<string, unknown>): PublicProject {
+export function toAziendaleProject(
+  row: Record<string, unknown>
+): AziendaleProject {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    tagline: row.tagline as string,
+    status: row.status as ProjectStatus,
+    next_milestone: (row.next_milestone as string | null) ?? null,
+    stack: (row.stack as string[]) ?? [],
+    url_site: (row.url_site as string | null) ?? null,
+    order_index: (row.order_index as number) ?? 0,
+  };
+}
+
+export function toPrivateProject(row: Record<string, unknown>): PrivateProject {
   return {
     id: row.id as string,
     name: row.name as string,
@@ -125,27 +128,23 @@ export function toPublicProject(row: Record<string, unknown>): PublicProject {
     url_site: (row.url_site as string | null) ?? null,
     url_repo: (row.url_repo as string | null) ?? null,
     url_substack: (row.url_substack as string | null) ?? null,
-    is_company: Boolean(row.is_company),
+    category: normalizeCategory(row.category),
     roadmap: parseRoadmap(row.roadmap),
     order_index: (row.order_index as number) ?? 0,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
-  };
-}
-
-export function toPrivateProject(row: Record<string, unknown>): PrivateProject {
-  return {
-    ...toPublicProject(row),
     private_notes: (row.private_notes as string | null) ?? null,
-    is_private: Boolean(row.is_private),
   };
 }
 
-export function isPrivateProject(
-  project: PublicProject | PrivateProject
-): project is PrivateProject {
-  return "is_private" in project;
+export function normalizeCategory(value: unknown): ProjectCategory {
+  return value === "aziendale" ? "aziendale" : "personale";
 }
+
+export const CATEGORY_LABELS: Record<ProjectCategory, string> = {
+  aziendale: "Aziendale",
+  personale: "Personale",
+};
 
 export const STATUS_LABELS: Record<ProjectStatus, string> = {
   idea: "Idea",
@@ -245,8 +244,6 @@ export function formatDaysSpan(days: number): string {
 }
 
 export function parseRoadmap(input: unknown): RoadmapItem[] {
-  console.log("parseRoadmap input:", input, typeof input);
-
   if (input == null) {
     return [];
   }

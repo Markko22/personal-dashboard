@@ -10,6 +10,7 @@ insert into public.projects (
   users_count,
   stack,
   url_site,
+  category,
   order_index
 ) values
 (
@@ -24,6 +25,7 @@ insert into public.projects (
   0,
   array['Next.js', 'Supabase', 'Anthropic API', 'Stripe'],
   'https://opfanta.it',
+  'personale',
   1
 ),
 (
@@ -38,6 +40,7 @@ insert into public.projects (
   0,
   array['Next.js', 'Supabase', 'Stripe'],
   null,
+  'aziendale',
   2
 ),
 (
@@ -52,5 +55,6 @@ insert into public.projects (
   0,
   array['Next.js', 'Supabase', 'Anthropic API'],
   null,
+  'aziendale',
   3
 );

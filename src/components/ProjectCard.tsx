@@ -1,10 +1,11 @@
 "use client";
 
 import {
-  isPrivateProject,
+  CATEGORY_LABELS,
+  type AziendaleProject,
   type PrivateProject,
+  type ProjectCategory,
   type ProjectStatus,
-  type PublicProject,
 } from "@/types/project";
 import ProjectLogo from "./ProjectLogo";
 import StatusBadge from "./StatusBadge";
@@ -27,21 +28,26 @@ function getCardBackground(status: ProjectStatus): string {
   }
 }
 
+type ProjectItem = AziendaleProject | PrivateProject;
+
+function getCategory(project: ProjectItem): ProjectCategory | null {
+  return "category" in project ? project.category : null;
+}
+
 type Props = {
-  project: PublicProject | PrivateProject;
+  project: ProjectItem;
   selected?: boolean;
-  showPrivateBadge?: boolean;
+  showCategoryBadge?: boolean;
   onClick: () => void;
 };
 
 export default function ProjectCard({
   project,
   selected = false,
-  showPrivateBadge = false,
+  showCategoryBadge = false,
   onClick,
 }: Props) {
-  const isPrivate =
-    showPrivateBadge && isPrivateProject(project) && project.is_private;
+  const category = getCategory(project);
 
   return (
     <button
@@ -58,18 +64,13 @@ export default function ProjectCard({
           <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
             Progetto
           </span>
-          {isPrivate && (
+          {showCategoryBadge && category && (
             <span className="rounded-full border border-zinc-500/30 bg-zinc-500/15 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide text-zinc-400">
-              Privato
+              {CATEGORY_LABELS[category]}
             </span>
           )}
         </div>
         <div className="flex flex-col items-end gap-1.5">
-          {project.is_company && (
-            <span className="rounded-sm bg-zinc-800/80 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
-              Aziendale
-            </span>
-          )}
           <ProjectLogo name={project.name} variant="card" />
         </div>
       </div>

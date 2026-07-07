@@ -1,26 +1,55 @@
 "use client";
 
-import { useState } from "react";
-import type { PrivateProject, PublicProject } from "@/types/project";
+import {
+  CATEGORY_LABELS,
+  type AziendaleProject,
+  type PrivateProject,
+  type ProjectCategory,
+} from "@/types/project";
 import ProjectCard from "./ProjectCard";
 
-type ProjectItem = PublicProject | PrivateProject;
+type ProjectItem = AziendaleProject | PrivateProject;
 
 type Props = {
   projects: ProjectItem[];
   selectedProjectId: string | null;
   onSelectProject: (project: ProjectItem) => void;
-  showPrivateBadge?: boolean;
+  showCategoryBadge?: boolean;
+  groupByCategory?: boolean;
 };
+
+function sortByOrder(projects: ProjectItem[]) {
+  return [...projects].sort((a, b) => a.order_index - b.order_index);
+}
+
+function renderGrid(
+  items: ProjectItem[],
+  selectedProjectId: string | null,
+  showCategoryBadge: boolean,
+  onSelectProject: (project: ProjectItem) => void
+) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
+      {items.map((project) => (
+        <ProjectCard
+          key={project.id}
+          project={project}
+          selected={selectedProjectId === project.id}
+          showCategoryBadge={showCategoryBadge}
+          onClick={() => onSelectProject(project)}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function ProjectGrid({
   projects,
   selectedProjectId,
   onSelectProject,
-  showPrivateBadge = false,
+  showCategoryBadge = false,
+  groupByCategory = false,
 }: Props) {
-  const [hideCompany, setHideCompany] = useState(false);
-
   if (projects.length === 0) {
     return (
       <p className="py-16 text-center text-[var(--muted)]">
@@ -29,43 +58,43 @@ export default function ProjectGrid({
     );
   }
 
-  const visibleProjects = hideCompany
-    ? projects.filter((p) => !p.is_company)
-    : projects;
+  if (!groupByCategory) {
+    return renderGrid(
+      sortByOrder(projects),
+      selectedProjectId,
+      showCategoryBadge,
+      onSelectProject
+    );
+  }
+
+  const categories: ProjectCategory[] = ["aziendale", "personale"];
 
   return (
-    <div>
-      <div className="mb-3 flex justify-end">
-        <button
-          type="button"
-          onClick={() => setHideCompany((prev) => !prev)}
-          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-            hideCompany
-              ? "bg-[var(--accent)]/20 text-[var(--accent)]"
-              : "bg-[var(--card)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-          }`}
-        >
-          {hideCompany ? "Mostra aziendali" : "Nascondi aziendali"}
-        </button>
-      </div>
+    <div className="space-y-10">
+      {categories.map((category) => {
+        const groupProjects = sortByOrder(
+          projects.filter(
+            (project): project is PrivateProject =>
+              "category" in project && project.category === category
+          )
+        );
 
-      {visibleProjects.length === 0 ? (
-        <p className="py-16 text-center text-[var(--muted)]">
-          Nessun progetto da mostrare.
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
-          {visibleProjects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              selected={selectedProjectId === project.id}
-              showPrivateBadge={showPrivateBadge}
-              onClick={() => onSelectProject(project)}
-            />
-          ))}
-        </div>
-      )}
+        if (groupProjects.length === 0) return null;
+
+        return (
+          <section key={category}>
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.15em] text-[var(--muted-foreground)]">
+              {CATEGORY_LABELS[category]}
+            </h3>
+            {renderGrid(
+              groupProjects,
+              selectedProjectId,
+              showCategoryBadge,
+              onSelectProject
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }

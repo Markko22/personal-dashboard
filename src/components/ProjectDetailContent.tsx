@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { fetchProjectTimeline } from "@/lib/supabase";
 import {
+  CATEGORY_LABELS,
   ROADMAP_PRIORITY_COLORS,
   ROADMAP_STATUS_LABELS,
   TIMELINE_DOT_COLORS,
@@ -13,25 +14,29 @@ import {
   formatItalianMonth,
   formatMrrDelta,
   formatMrrValue,
-  isPrivateProject,
   mrrGoalProgress,
+  type AziendaleProject,
   type PrivateProject,
-  type PublicProject,
   type RoadmapItem,
   type RoadmapItemStatus,
   type TimelineEvent,
 } from "@/types/project";
+import type { DashboardViewMode } from "./DashboardShell";
 import StatusBadge from "./StatusBadge";
 
-export type ProjectItem = PublicProject | PrivateProject;
+export type ProjectItem = AziendaleProject | PrivateProject;
 
 type Props = {
   project: ProjectItem;
-  privateView?: boolean;
+  viewMode: DashboardViewMode;
 };
 
 function formatUrl(url: string) {
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+}
+
+function isPrivateProject(project: ProjectItem): project is PrivateProject {
+  return "category" in project;
 }
 
 function RoadmapStatusIcon({ status }: { status: RoadmapItemStatus }) {
@@ -165,12 +170,15 @@ function StoriaSection({
 
 export default function ProjectDetailContent({
   project,
-  privateView = false,
+  viewMode,
 }: Props) {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
+  const isAziendaleView = viewMode === "aziendale";
 
   useEffect(() => {
+    if (isAziendaleView) return;
+
     let cancelled = false;
     setLoadingTimeline(true);
 
@@ -189,30 +197,9 @@ export default function ProjectDetailContent({
     return () => {
       cancelled = true;
     };
-  }, [project.id]);
+  }, [isAziendaleView, project.id]);
 
-  const showPrivateDetails =
-    privateView && isPrivateProject(project) && project.is_private;
-  const privateNotes =
-    privateView && isPrivateProject(project) ? project.private_notes : null;
-
-  const mrrDelta = formatMrrDelta(project.mrr, project.mrr_prev);
-  const goalProgress = mrrGoalProgress(project.mrr, project.mrr_goal);
-  const deltaToneClass =
-    mrrDelta.tone === "positive"
-      ? "text-emerald-400"
-      : mrrDelta.tone === "negative"
-        ? "text-red-400"
-        : "text-[var(--muted)]";
-
-  const ideaToBuildDays =
-    project.idea_date && project.build_start_date
-      ? daysBetweenDates(project.idea_date, project.build_start_date)
-      : null;
-  const buildToLaunchDays =
-    project.build_start_date && project.launch_date
-      ? daysBetweenDates(project.build_start_date, project.launch_date)
-      : null;
+  const privateProject = isPrivateProject(project) ? project : null;
 
   return (
     <div>
@@ -225,9 +212,9 @@ export default function ProjectDetailContent({
           {project.name}
         </h2>
         <StatusBadge status={project.status} />
-        {showPrivateDetails && (
+        {privateProject && viewMode === "private" && (
           <span className="shrink-0 rounded-full border border-zinc-500/30 bg-zinc-500/15 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
-            Privato
+            {CATEGORY_LABELS[privateProject.category]}
           </span>
         )}
       </div>
@@ -236,13 +223,13 @@ export default function ProjectDetailContent({
         {project.tagline}
       </p>
 
-      {privateView && isPrivateProject(project) && (
+      {viewMode === "private" && privateProject && (
         <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
           <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
             Note private
           </h3>
           <p className="mt-1.5 text-sm leading-relaxed text-[var(--foreground)]">
-            {privateNotes || "—"}
+            {privateProject.private_notes || "—"}
           </p>
         </div>
       )}
@@ -258,116 +245,158 @@ export default function ProjectDetailContent({
         </div>
       )}
 
-      <div className="mt-6 space-y-5">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-              MRR attuale
-            </h3>
-            <p className="mt-1.5 text-sm text-[var(--foreground)]">
-              {formatMrrValue(project.mrr)}
-            </p>
-          </div>
-          <div>
-            <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-              vs mese scorso
-            </h3>
-            <p className={`mt-1.5 text-sm ${deltaToneClass}`}>
-              {mrrDelta.text}
-            </p>
-          </div>
-        </div>
-
-        {project.mrr_goal > 0 && (
-          <div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--background)]">
-              <div
-                className="h-full rounded-full bg-emerald-500 transition-all"
-                style={{ width: `${goalProgress}%` }}
-              />
+      {!isAziendaleView && privateProject && (
+        <>
+          <div className="mt-6 space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+                  MRR attuale
+                </h3>
+                <p className="mt-1.5 text-sm text-[var(--foreground)]">
+                  {formatMrrValue(privateProject.mrr)}
+                </p>
+              </div>
+              <div>
+                <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+                  vs mese scorso
+                </h3>
+                <p
+                  className={`mt-1.5 text-sm ${
+                    formatMrrDelta(privateProject.mrr, privateProject.mrr_prev)
+                      .tone === "positive"
+                      ? "text-emerald-400"
+                      : formatMrrDelta(
+                            privateProject.mrr,
+                            privateProject.mrr_prev
+                          ).tone === "negative"
+                        ? "text-red-400"
+                        : "text-[var(--muted)]"
+                  }`}
+                >
+                  {
+                    formatMrrDelta(privateProject.mrr, privateProject.mrr_prev)
+                      .text
+                  }
+                </p>
+              </div>
             </div>
-            <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-              {formatMrrValue(project.mrr)} di {formatMrrValue(project.mrr_goal)}{" "}
-              obiettivo ({goalProgress}%)
-            </p>
-          </div>
-        )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-              Utenti
-            </h3>
-            <p className="mt-1.5 text-sm text-[var(--foreground)]">
-              {project.users_count > 0 ? project.users_count : "—"}
-            </p>
-          </div>
-          <div>
-            <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-              Live da
-            </h3>
-            <p className="mt-1.5 text-sm text-[var(--foreground)]">
-              {formatDaysLive(project.launch_date)}
-            </p>
-          </div>
-        </div>
-      </div>
+            {privateProject.mrr_goal > 0 && (
+              <div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--background)]">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{
+                      width: `${mrrGoalProgress(privateProject.mrr, privateProject.mrr_goal)}%`,
+                    }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                  {formatMrrValue(privateProject.mrr)} di{" "}
+                  {formatMrrValue(privateProject.mrr_goal)} obiettivo (
+                  {mrrGoalProgress(
+                    privateProject.mrr,
+                    privateProject.mrr_goal
+                  )}
+                  %)
+                </p>
+              </div>
+            )}
 
-      <div className="mt-6">
-        <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-          Date chiave
-        </h3>
-        <dl className="mt-3 space-y-2 text-sm">
-          <div className="flex justify-between gap-4">
-            <dt className="text-[var(--muted-foreground)]">Idea</dt>
-            <dd className="text-right text-[var(--foreground)]">
-              {formatItalianMonth(project.idea_date)}
-            </dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-[var(--muted-foreground)]">Inizio build</dt>
-            <dd className="text-right text-[var(--foreground)]">
-              {formatItalianMonth(project.build_start_date)}
-            </dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-[var(--muted-foreground)]">Lancio</dt>
-            <dd className="text-right text-[var(--foreground)]">
-              {formatItalianMonth(project.launch_date)}
-            </dd>
-          </div>
-          {ideaToBuildDays !== null && (
-            <div className="flex justify-between gap-4">
-              <dt className="text-[var(--muted-foreground)]">Giorni idea→build</dt>
-              <dd className="text-right text-[var(--foreground)]">
-                {formatDaysSpan(ideaToBuildDays)}
-              </dd>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+                  Utenti
+                </h3>
+                <p className="mt-1.5 text-sm text-[var(--foreground)]">
+                  {privateProject.users_count > 0
+                    ? privateProject.users_count
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+                  Live da
+                </h3>
+                <p className="mt-1.5 text-sm text-[var(--foreground)]">
+                  {formatDaysLive(privateProject.launch_date)}
+                </p>
+              </div>
             </div>
-          )}
-          {buildToLaunchDays !== null && (
-            <div className="flex justify-between gap-4">
-              <dt className="text-[var(--muted-foreground)]">Giorni build→lancio</dt>
-              <dd className="text-right text-[var(--foreground)]">
-                {formatDaysSpan(buildToLaunchDays)}
-              </dd>
-            </div>
-          )}
-        </dl>
-      </div>
+          </div>
 
-      <div className="mt-6">
-        <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-          Storia
-        </h3>
-        <StoriaSection events={timeline} loading={loadingTimeline} />
-      </div>
+          <div className="mt-6">
+            <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+              Date chiave
+            </h3>
+            <dl className="mt-3 space-y-2 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">Idea</dt>
+                <dd className="text-right text-[var(--foreground)]">
+                  {formatItalianMonth(privateProject.idea_date)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">Inizio build</dt>
+                <dd className="text-right text-[var(--foreground)]">
+                  {formatItalianMonth(privateProject.build_start_date)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">Lancio</dt>
+                <dd className="text-right text-[var(--foreground)]">
+                  {formatItalianMonth(privateProject.launch_date)}
+                </dd>
+              </div>
+              {privateProject.idea_date && privateProject.build_start_date && (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-[var(--muted-foreground)]">
+                    Giorni idea→build
+                  </dt>
+                  <dd className="text-right text-[var(--foreground)]">
+                    {formatDaysSpan(
+                      daysBetweenDates(
+                        privateProject.idea_date,
+                        privateProject.build_start_date
+                      )
+                    )}
+                  </dd>
+                </div>
+              )}
+              {privateProject.build_start_date && privateProject.launch_date && (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-[var(--muted-foreground)]">
+                    Giorni build→lancio
+                  </dt>
+                  <dd className="text-right text-[var(--foreground)]">
+                    {formatDaysSpan(
+                      daysBetweenDates(
+                        privateProject.build_start_date,
+                        privateProject.launch_date
+                      )
+                    )}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </div>
 
-      <div className="mt-6">
-        <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-          Roadmap
-        </h3>
-        <RoadmapSection items={project.roadmap} />
-      </div>
+          <div className="mt-6">
+            <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+              Storia
+            </h3>
+            <StoriaSection events={timeline} loading={loadingTimeline} />
+          </div>
+
+          <div className="mt-6">
+            <h3 className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+              Roadmap
+            </h3>
+            <RoadmapSection items={privateProject.roadmap} />
+          </div>
+        </>
+      )}
 
       {project.stack.length > 0 && (
         <div className="mt-6">
@@ -387,21 +416,24 @@ export default function ProjectDetailContent({
         </div>
       )}
 
-      {(project.url_site || project.url_repo || project.url_substack) && (
+      {project.url_site && (
         <div className="mt-6 flex flex-wrap gap-3">
-          {project.url_site && (
+          <a
+            href={project.url_site}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-[var(--muted-foreground)] underline underline-offset-4 transition-colors hover:text-[var(--foreground)]"
+          >
+            {formatUrl(project.url_site)} ↗
+          </a>
+        </div>
+      )}
+
+      {!isAziendaleView && privateProject && (
+        <div className="mt-6 flex flex-wrap gap-3">
+          {privateProject.url_repo && (
             <a
-              href={project.url_site}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-[var(--muted-foreground)] underline underline-offset-4 transition-colors hover:text-[var(--foreground)]"
-            >
-              {formatUrl(project.url_site)} ↗
-            </a>
-          )}
-          {project.url_repo && (
-            <a
-              href={project.url_repo}
+              href={privateProject.url_repo}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-[var(--muted-foreground)] underline underline-offset-4 transition-colors hover:text-[var(--foreground)]"
@@ -409,9 +441,9 @@ export default function ProjectDetailContent({
               GitHub ↗
             </a>
           )}
-          {project.url_substack && (
+          {privateProject.url_substack && (
             <a
-              href={project.url_substack}
+              href={privateProject.url_substack}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-[var(--muted-foreground)] underline underline-offset-4 transition-colors hover:text-[var(--foreground)]"

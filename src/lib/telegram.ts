@@ -3,8 +3,10 @@ import {
   PROJECT_STATUSES,
   ROADMAP_ITEM_PRIORITIES,
   TIMELINE_EVENT_TYPES,
+  normalizeCategory,
   parseRoadmap,
   type Project,
+  type ProjectCategory,
   type ProjectStatus,
   type RoadmapItem,
   type RoadmapItemPriority,
@@ -19,8 +21,7 @@ type WizardData = {
   tagline?: string;
   status?: ProjectStatus;
   project_id?: string;
-  is_private?: boolean;
-  is_company?: boolean;
+  category?: ProjectCategory;
 };
 
 type TelegramSession = {
@@ -52,7 +53,7 @@ Regole:
 - Se non capisci a quale progetto si riferisce, chiedi con una domanda corta
 - Date in formato italiano (es. "1 luglio 2026") convertile in YYYY-MM-DD prima di passarle ai tool
 - Se Marco chiede "cosa puoi fare?" descrivi le capacità in linguaggio naturale, non lista comandi
-- Non impostare mai is_private = true a meno che l'utente non usi esplicitamente le parole 'privato', 'nascosto' o 'non pubblico'. 'Personale' non significa privato.
+- Per cambiare categoria usa update_project con field category (aziendale | personale) oppure il comando /update [id] category [aziendale|personale]
 `;
 
 const TOOLS = [
@@ -79,7 +80,7 @@ const TOOLS = [
   {
     name: "update_project",
     description:
-      "Aggiorna un campo di un progetto. field può essere: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, is_private, is_company, url_site, url_repo, url_substack",
+      "Aggiorna un campo di un progetto. field può essere: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, category, url_site, url_repo, url_substack",
     input_schema: {
       type: "object",
       properties: {
@@ -532,8 +533,7 @@ async function executeTool(
         milestone: "next_milestone",
         private_notes: "private_notes",
         notes: "private_notes",
-        is_private: "is_private",
-        is_company: "is_company",
+        category: "category",
         url_site: "url_site",
         url_repo: "url_repo",
         url_substack: "url_substack",
@@ -543,7 +543,7 @@ async function executeTool(
       if (!dbField) {
         return {
           error:
-            "Campo non riconosciuto. Usa: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, is_private, is_company, url_site, url_repo, url_substack.",
+            "Campo non riconosciuto. Usa: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, category, url_site, url_repo, url_substack.",
         };
       }
       let update: Record<string, unknown> = {};
@@ -604,16 +604,14 @@ async function executeTool(
           update = { private_notes: value.trim() || null };
           break;
         }
-        case "is_private":
-        case "is_company": {
-          update = {
-            [dbField]:
-              value === "true" ||
-              value === "si" ||
-              value === "sì" ||
-              value === "1" ||
-              value === "yes",
-          };
+        case "category": {
+          const normalized = value.trim().toLowerCase();
+          if (normalized !== "aziendale" && normalized !== "personale") {
+            return {
+              error: "Categoria non valida. Usa: aziendale o personale.",
+            };
+          }
+          update = { category: normalized };
           break;
         }
         case "url_site":
@@ -625,7 +623,7 @@ async function executeTool(
         default:
           return {
             error:
-              "Campo non riconosciuto. Usa: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, is_private, is_company, url_site, url_repo, url_substack.",
+              "Campo non riconosciuto. Usa: status, revenue, mrr, mrr_goal, mrr_prev, launch_date, idea_date, build_start_date, users_count, next_milestone, private_notes, category, url_site, url_repo, url_substack.",
           };
       }
 
@@ -1057,9 +1055,9 @@ async function runClaudeWithTools(
   return "Non ho capito. Puoi ripetere?";
 }
 
-async function handleToggleCompany(
-  chatId: number,
-  idPrefix: string
+async function handleUpdateCategory(
+  idPrefix: string,
+  category: ProjectCategory
 ): Promise<string> {
   const project = await findProjectByIdPrefix(idPrefix);
 
@@ -1067,16 +1065,15 @@ async function handleToggleCompany(
     throw new Error(`Progetto non trovato per id "${idPrefix}".`);
   }
 
-  const newValue = !project.is_company;
   const supabase = createServiceClient();
   const { error } = await supabase
     .from("projects")
-    .update({ is_company: newValue })
+    .update({ category })
     .eq("id", project.id);
 
   if (error) throw error;
 
-  return `<b>${project.name}</b> — Aziendale: ${newValue ? "sì ✅" : "no ❌"}`;
+  return `${project.name} — categoria: ${category}`;
 }
 
 export async function handleTelegramCallback(
@@ -1091,13 +1088,11 @@ export async function handleTelegramCallback(
   }
 
   try {
-    if (data.startsWith("toggle_company:")) {
-      const idPrefix = data.slice("toggle_company:".length);
-      const confirmMsg = await handleToggleCompany(chatId, idPrefix);
-      await answerCallbackQuery(
-        callbackQueryId,
-        confirmMsg.replace(/<[^>]+>/g, "")
-      );
+    if (data.startsWith("toggle_category:")) {
+      const [, idPrefix, rawCategory] = data.split(":");
+      const category = normalizeCategory(rawCategory);
+      const confirmMsg = await handleUpdateCategory(idPrefix, category);
+      await answerCallbackQuery(callbackQueryId, confirmMsg);
       await sendTelegramMessage(chatId, `✓ ${confirmMsg}`);
       return;
     }
@@ -1128,6 +1123,25 @@ export async function handleTelegramUpdate(
   ) {
     await clearSession(chatId);
     await sendTelegramMessage(chatId, "Conversazione resettata.");
+    return;
+  }
+
+  const updateCategoryMatch = trimmed.match(
+    /^\/update\s+(\S+)\s+category\s+(aziendale|personale)$/i
+  );
+  if (updateCategoryMatch) {
+    const [, idPrefix, rawCategory] = updateCategoryMatch;
+    try {
+      const category = normalizeCategory(rawCategory);
+      const message = await handleUpdateCategory(idPrefix, category);
+      await sendTelegramMessage(chatId, `✓ ${message}`);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Errore durante l'aggiornamento.";
+      await sendTelegramMessage(chatId, message);
+    }
     return;
   }
 

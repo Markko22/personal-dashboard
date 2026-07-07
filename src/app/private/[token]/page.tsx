@@ -1,35 +1,28 @@
-import { notFound } from "next/navigation";
-import DashboardShell from "@/components/DashboardShell";
-import { fetchAllProjects } from "@/lib/supabase";
-import type { PrivateProject } from "@/types/project";
+import { cookies } from "next/headers";
+import { notFound, redirect } from "next/navigation";
+import { AUTH_COOKIE_NAME, getExpectedAuthToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
 
 type Props = {
   params: { token: string };
 };
 
-export default async function PrivateDashboardPage({ params }: Props) {
-  const expectedToken = process.env.PRIVATE_PAGE_TOKEN;
+export default async function PrivateAuthPage({ params }: Props) {
+  const expectedToken = getExpectedAuthToken();
 
   if (!expectedToken || params.token !== expectedToken) {
     notFound();
   }
 
-  let projects: PrivateProject[] = [];
-  try {
-    projects = await fetchAllProjects();
-  } catch (error) {
-    console.error("Failed to fetch private projects:", error);
-  }
+  const cookieStore = await cookies();
+  cookieStore.set(AUTH_COOKIE_NAME, params.token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
 
-  return (
-    <DashboardShell
-      initialProjects={projects}
-      privateView
-      headerTitle="VISTA PRIVATA"
-      headerSubtitle="Tutti i progetti inclusi quelli privati"
-    />
-  );
+  redirect("/tutti");
 }

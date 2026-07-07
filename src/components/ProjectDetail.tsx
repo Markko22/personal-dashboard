@@ -3,13 +3,14 @@
 import {
   STATUS_COLORS,
   STATUS_LABELS,
+  type AziendaleProject,
   type PrivateProject,
   type ProjectStatus,
-  type PublicProject,
 } from "@/types/project";
+import type { DashboardViewMode } from "./DashboardShell";
 import ProjectDetailContent from "./ProjectDetailContent";
 
-type ProjectItem = PublicProject | PrivateProject;
+type ProjectItem = AziendaleProject | PrivateProject;
 
 const STATUS_NAV_ORDER: ProjectStatus[] = [
   "live",
@@ -33,14 +34,14 @@ type Props = {
   projects: ProjectItem[];
   selectedProject: ProjectItem | null;
   onSelectProject: (project: ProjectItem) => void;
-  privateView?: boolean;
+  viewMode: DashboardViewMode;
 };
 
 export default function ProjectDetail({
   projects,
   selectedProject,
   onSelectProject,
-  privateView = false,
+  viewMode,
 }: Props) {
   const groups = groupProjectsByStatus(projects);
 
@@ -108,7 +109,7 @@ export default function ProjectDetail({
           {selectedProject ? (
             <ProjectDetailContent
               project={selectedProject}
-              privateView={privateView}
+              viewMode={viewMode}
             />
           ) : (
             <p className="text-sm text-[var(--muted)]">Seleziona un progetto</p>

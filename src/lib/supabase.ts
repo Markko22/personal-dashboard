@@ -1,11 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import {
+  AZIENDALE_PROJECT_COLUMNS,
   PRIVATE_PROJECT_COLUMNS,
-  PUBLIC_PROJECT_COLUMNS,
+  toAziendaleProject,
   toPrivateProject,
-  toPublicProject,
+  type AziendaleProject,
   type PrivateProject,
-  type PublicProject,
+  type ProjectCategory,
   type TimelineEvent,
 } from "@/types/project";
 
@@ -35,20 +36,32 @@ export function createServiceClient() {
   });
 }
 
-export async function fetchPublicProjects(): Promise<PublicProject[]> {
+export async function fetchAziendaliProjects(): Promise<AziendaleProject[]> {
   const supabase = createPublicClient();
   const { data, error } = await supabase
-    .from("projects")
-    .select(PUBLIC_PROJECT_COLUMNS)
-    .eq("is_private", false)
+    .from("projects_aziendali_safe")
+    .select(AZIENDALE_PROJECT_COLUMNS)
     .order("order_index", { ascending: true });
 
   if (error) throw error;
 
-  console.log("raw roadmap from DB:", data?.[0]?.roadmap);
+  return (data ?? []).map((row) =>
+    toAziendaleProject(row as Record<string, unknown>)
+  );
+}
+
+export async function fetchPersonaliProjects(): Promise<PrivateProject[]> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("projects")
+    .select(PRIVATE_PROJECT_COLUMNS)
+    .eq("category", "personale")
+    .order("order_index", { ascending: true });
+
+  if (error) throw error;
 
   return (data ?? []).map((row) =>
-    toPublicProject(row as Record<string, unknown>)
+    toPrivateProject(row as Record<string, unknown>)
   );
 }
 
@@ -57,6 +70,23 @@ export async function fetchAllProjects(): Promise<PrivateProject[]> {
   const { data, error } = await supabase
     .from("projects")
     .select(PRIVATE_PROJECT_COLUMNS)
+    .order("order_index", { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) =>
+    toPrivateProject(row as Record<string, unknown>)
+  );
+}
+
+export async function fetchProjectsByCategory(
+  category: ProjectCategory
+): Promise<PrivateProject[]> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("projects")
+    .select(PRIVATE_PROJECT_COLUMNS)
+    .eq("category", category)
     .order("order_index", { ascending: true });
 
   if (error) throw error;

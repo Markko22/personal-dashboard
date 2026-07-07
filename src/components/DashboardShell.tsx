@@ -3,23 +3,29 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPublicClient } from "@/lib/supabase";
 import {
-  toPrivateProject,
-  toPublicProject,
+  toAziendaleProject,
+  type AziendaleProject,
   type PrivateProject,
-  type PublicProject,
 } from "@/types/project";
 import ProjectDetail from "./ProjectDetail";
 import ProjectDetailContent from "./ProjectDetailContent";
 import ProjectGrid from "./ProjectGrid";
 import Sidebar from "./Sidebar";
 
-type ProjectItem = PublicProject | PrivateProject;
+type ProjectItem = AziendaleProject | PrivateProject;
+
+export type DashboardViewMode = "aziendale" | "private";
 
 type Props = {
   initialProjects: ProjectItem[];
-  privateView?: boolean;
-  headerTitle: string;
-  headerSubtitle: string;
+  viewMode: DashboardViewMode;
+  headerTitle?: string;
+  headerSubtitle?: string;
+  showSidebar?: boolean;
+  showHeader?: boolean;
+  showCategoryBadge?: boolean;
+  groupByCategory?: boolean;
+  enableRealtime?: boolean;
 };
 
 function useIsMobile(breakpoint = 768) {
@@ -38,9 +44,14 @@ function useIsMobile(breakpoint = 768) {
 
 export default function DashboardShell({
   initialProjects,
-  privateView = false,
+  viewMode,
   headerTitle,
   headerSubtitle,
+  showSidebar = viewMode === "private",
+  showHeader = true,
+  showCategoryBadge = false,
+  groupByCategory = false,
+  enableRealtime = false,
 }: Props) {
   const isMobile = useIsMobile();
   const [projects, setProjects] = useState(initialProjects);
@@ -49,15 +60,12 @@ export default function DashboardShell({
   );
   const [detailOpen, setDetailOpen] = useState(false);
 
-  const handleSelectProject = useCallback(
-    (project: ProjectItem) => {
-      setSelectedProject(project);
-      if (window.matchMedia("(max-width: 767px)").matches) {
-        setDetailOpen(true);
-      }
-    },
-    []
-  );
+  const handleSelectProject = useCallback((project: ProjectItem) => {
+    setSelectedProject(project);
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      setDetailOpen(true);
+    }
+  }, []);
 
   const handleRealtimeUpdate = useCallback(
     (payload: {
@@ -65,23 +73,25 @@ export default function DashboardShell({
       new: Record<string, unknown>;
       old: { id: string };
     }) => {
-      const mapRow = privateView ? toPrivateProject : toPublicProject;
+      if (viewMode !== "aziendale") return;
 
-      if (payload.eventType === "INSERT") {
-        const row = mapRow(payload.new);
-        if (!privateView && "is_private" in row && row.is_private) return;
-        setProjects((prev) =>
-          [...prev, row].sort((a, b) => a.order_index - b.order_index)
-        );
-      } else if (payload.eventType === "UPDATE") {
-        const row = mapRow(payload.new);
-        if (!privateView && "is_private" in row && row.is_private) {
+      const row = toAziendaleProject(payload.new);
+      if (payload.new.category !== "aziendale") {
+        if (payload.eventType === "INSERT") return;
+        if (payload.eventType === "UPDATE") {
           setProjects((prev) => prev.filter((p) => p.id !== row.id));
           setSelectedProject((current) =>
             current?.id === row.id ? null : current
           );
-          return;
         }
+        return;
+      }
+
+      if (payload.eventType === "INSERT") {
+        setProjects((prev) =>
+          [...prev, row].sort((a, b) => a.order_index - b.order_index)
+        );
+      } else if (payload.eventType === "UPDATE") {
         setProjects((prev) =>
           prev
             .map((p) => (p.id === row.id ? row : p))
@@ -101,11 +111,11 @@ export default function DashboardShell({
         });
       }
     },
-    [privateView]
+    [viewMode]
   );
 
   useEffect(() => {
-    if (privateView) return;
+    if (!enableRealtime) return;
 
     const supabase = createPublicClient();
 
@@ -127,7 +137,7 @@ export default function DashboardShell({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [handleRealtimeUpdate, privateView]);
+  }, [enableRealtime, handleRealtimeUpdate]);
 
   useEffect(() => {
     setProjects(initialProjects);
@@ -169,25 +179,32 @@ export default function DashboardShell({
 
   return (
     <div className="flex h-screen flex-row overflow-hidden bg-[var(--background)]">
-      <div className="hidden w-[200px] shrink-0 overflow-y-auto border-r border-[var(--border)] md:block">
-        <Sidebar />
-      </div>
+      {showSidebar && (
+        <div className="hidden w-[200px] shrink-0 overflow-y-auto border-r border-[var(--border)] md:block">
+          <Sidebar />
+        </div>
+      )}
 
       <div className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
-        <header className="mb-6 md:mb-8">
-          <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)] sm:text-xl md:text-2xl">
-            {headerTitle}
-            <span className="font-normal text-[var(--muted-foreground)]">
-              {" "}
-              / {headerSubtitle}
-            </span>
-          </h2>
-        </header>
+        {showHeader && headerTitle && (
+          <header className="mb-6 md:mb-8">
+            <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)] sm:text-xl md:text-2xl">
+              {headerTitle}
+              {headerSubtitle && (
+                <span className="font-normal text-[var(--muted-foreground)]">
+                  {" "}
+                  / {headerSubtitle}
+                </span>
+              )}
+            </h2>
+          </header>
+        )}
 
         <ProjectGrid
           projects={projects}
           selectedProjectId={selectedProject?.id ?? null}
-          showPrivateBadge={privateView}
+          showCategoryBadge={showCategoryBadge}
+          groupByCategory={groupByCategory}
           onSelectProject={handleSelectProject}
         />
       </div>
@@ -196,7 +213,7 @@ export default function DashboardShell({
         <ProjectDetail
           projects={projects}
           selectedProject={selectedProject}
-          privateView={privateView}
+          viewMode={viewMode}
           onSelectProject={handleSelectProject}
         />
       </div>
@@ -231,7 +248,7 @@ export default function DashboardShell({
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               <ProjectDetailContent
                 project={selectedProject}
-                privateView={privateView}
+                viewMode={viewMode}
               />
             </div>
           </div>

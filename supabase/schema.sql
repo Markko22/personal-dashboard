@@ -17,7 +17,7 @@ create table if not exists public.projects (
   url_repo text,
   url_substack text,
   private_notes text,
-  is_private boolean not null default false,
+  category text not null default 'personale' check (category in ('aziendale', 'personale')),
   roadmap jsonb not null default '[]',
   order_index integer not null default 0,
   created_at timestamptz not null default now(),
@@ -62,10 +62,31 @@ alter table public.projects enable row level security;
 alter table public.project_timeline enable row level security;
 alter table public.telegram_sessions enable row level security;
 
--- Public read on projects (anon key can SELECT)
-create policy "Public read projects"
+-- Anon: no direct access to projects (reads via projects_aziendali_safe view only)
+revoke all on table public.projects from anon;
+grant select on table public.projects to authenticated;
+
+create policy "Authenticated read all projects"
   on public.projects for select
+  to authenticated
   using (true);
+
+-- Safe public view for aziendali dashboard
+create or replace view public.projects_aziendali_safe as
+select
+  id,
+  name,
+  tagline,
+  status,
+  next_milestone,
+  stack,
+  url_site,
+  order_index
+from public.projects
+where category = 'aziendale';
+
+grant select on public.projects_aziendali_safe to anon;
+grant select on public.projects_aziendali_safe to authenticated;
 
 -- No public write on projects (only service_role bypasses RLS)
 create policy "No public insert projects"
