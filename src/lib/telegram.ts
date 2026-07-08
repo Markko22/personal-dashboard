@@ -50,6 +50,7 @@ Regole:
 - Sii conciso e diretto, sei su Telegram (no markdown eccessivo, no asterischi)
 - Se Marco dice "idea: [testo]" o "spunto: [testo]" o "ho visto su Instagram che...", usa save_idea
 - Per eliminare un progetto, chiedi SEMPRE conferma prima di chiamare delete_project
+- NON chiamare MAI delete_project come cleanup, rollback o correzione di un'altra operazione (es. dopo create_project fallito o duplicato). delete_project va usato SOLO quando Marco chiede esplicitamente di eliminare un progetto e ha confermato esplicitamente
 - Se non capisci a quale progetto si riferisce, chiedi con una domanda corta
 - Date in formato italiano (es. "1 luglio 2026") convertile in YYYY-MM-DD prima di passarle ai tool
 - Se Marco chiede "cosa puoi fare?" descrivi le capacità in linguaggio naturale, non lista comandi
@@ -96,7 +97,8 @@ const TOOLS = [
   },
   {
     name: "create_project",
-    description: "Crea un nuovo progetto",
+    description:
+      "Crea un nuovo progetto. Se la creazione fallisce o crea un duplicato, NON usare delete_project per fare rollback.",
     input_schema: {
       type: "object",
       properties: {
@@ -114,13 +116,18 @@ const TOOLS = [
   {
     name: "delete_project",
     description:
-      "Elimina un progetto. Usare SOLO dopo conferma esplicita dell'utente.",
+      "Elimina un progetto. Usare SOLO quando Marco chiede esplicitamente di eliminare un progetto e ha confermato esplicitamente. MAI come cleanup o rollback di altre operazioni.",
     input_schema: {
       type: "object",
       properties: {
         id_prefix: { type: "string" },
+        confirmed: {
+          type: "boolean",
+          description:
+            "true solo dopo conferma esplicita di Marco di procedere con l'eliminazione",
+        },
       },
-      required: ["id_prefix"],
+      required: ["id_prefix", "confirmed"],
     },
   },
   {
@@ -464,7 +471,8 @@ function normalizeProjectStatus(raw: string): ProjectStatus | null {
 
 async function executeTool(
   toolName: string,
-  toolInput: Record<string, unknown>
+  toolInput: Record<string, unknown>,
+  context?: { siblingToolNames?: string[] }
 ): Promise<unknown> {
   try {
     const supabase = createServiceClient();
@@ -724,6 +732,19 @@ async function executeTool(
     }
 
     case "delete_project": {
+      if (toolInput.confirmed !== true) {
+        return {
+          error:
+            "Eliminazione bloccata: serve confirmed=true solo dopo conferma esplicita di Marco.",
+        };
+      }
+      if (context?.siblingToolNames?.includes("create_project")) {
+        return {
+          error:
+            "delete_project non può essere usato come cleanup o rollback insieme a create_project.",
+        };
+      }
+
       const idPrefix = String(toolInput.id_prefix ?? "");
       const project = await findProjectByPrefixOrName(idPrefix);
       if (!project) {
@@ -1027,30 +1048,32 @@ async function runClaudeWithTools(
         content: response.content as never,
       });
 
+      const toolBlocks = response.content.filter((b) => b.type === "tool_use");
+      const siblingToolNames = toolBlocks.map((b) => b.name);
+
       const toolResults = await Promise.all(
-        response.content
-          .filter((b) => b.type === "tool_use")
-          .map(async (block) => {
-            if (block.type !== "tool_use") return null;
-            try {
-              const result = await executeTool(
-                block.name,
-                block.input as Record<string, unknown>
-              );
-              return {
-                type: "tool_result" as const,
-                tool_use_id: block.id,
-                content: JSON.stringify(result),
-              };
-            } catch (err) {
-              return {
-                type: "tool_result" as const,
-                tool_use_id: block.id,
-                content: `Errore: ${err instanceof Error ? err.message : "errore sconosciuto"}`,
-                is_error: true,
-              };
-            }
-          })
+        toolBlocks.map(async (block) => {
+          if (block.type !== "tool_use") return null;
+          try {
+            const result = await executeTool(
+              block.name,
+              block.input as Record<string, unknown>,
+              { siblingToolNames }
+            );
+            return {
+              type: "tool_result" as const,
+              tool_use_id: block.id,
+              content: JSON.stringify(result),
+            };
+          } catch (err) {
+            return {
+              type: "tool_result" as const,
+              tool_use_id: block.id,
+              content: `Errore: ${err instanceof Error ? err.message : "errore sconosciuto"}`,
+              is_error: true,
+            };
+          }
+        })
       );
 
       currentMessages.push({
