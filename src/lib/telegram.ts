@@ -704,6 +704,18 @@ async function executeTool(
         return { error: "Insert completato ma nessun dato restituito" };
       }
 
+      const { data: verify } = await supabase
+        .from("projects")
+        .select("id, name")
+        .eq("id", created.id)
+        .single();
+
+      if (!verify) {
+        return {
+          error: "Insert completato ma progetto non trovato - riprovare",
+        };
+      }
+
       return {
         success: true,
         id: created.id.slice(0, 8),
