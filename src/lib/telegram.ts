@@ -55,6 +55,7 @@ Regole:
 - Date in formato italiano (es. "1 luglio 2026") convertile in YYYY-MM-DD prima di passarle ai tool
 - Se Marco chiede "cosa puoi fare?" descrivi le capacità in linguaggio naturale, non lista comandi
 - Per cambiare categoria usa update_project con field category (aziendale | personale) oppure il comando /update [id] category [aziendale|personale]
+- IMPORTANTE: per qualsiasi operazione di scrittura (crea, aggiorna, elimina) devi SEMPRE chiamare il tool appropriato prima di rispondere. Non puoi mai dire "Fatto!" o "Ho creato/aggiornato" senza aver ricevuto una risposta di successo dal tool. Se il tool restituisce un errore, comunicalo esplicitamente.
 `;
 
 const TOOLS = [
@@ -1050,10 +1051,16 @@ async function runClaudeWithTools(
               block.name,
               block.input as Record<string, unknown>
             );
+            const hasError =
+              result !== null &&
+              typeof result === "object" &&
+              "error" in result;
+
             return {
               type: "tool_result" as const,
               tool_use_id: block.id,
               content: JSON.stringify(result),
+              ...(hasError ? { is_error: true } : {}),
             };
           } catch (err) {
             return {
