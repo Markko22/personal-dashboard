@@ -116,7 +116,7 @@ const TOOLS = [
   {
     name: "delete_project",
     description:
-      "Elimina un progetto. Usare SOLO quando Marco chiede esplicitamente di eliminare un progetto e ha confermato esplicitamente. MAI come cleanup o rollback di altre operazioni.",
+      "Elimina un progetto. Richiede confirmed: true che deve essere passato SOLO dopo che l'utente ha scritto esplicitamente 'sì', 'confermo' o simili nella chat. Non passare confirmed: true senza conferma testuale dell'utente.",
     input_schema: {
       type: "object",
       properties: {
@@ -124,7 +124,7 @@ const TOOLS = [
         confirmed: {
           type: "boolean",
           description:
-            "true solo dopo conferma esplicita di Marco di procedere con l'eliminazione",
+            "Deve essere true SOLO se l'utente ha confermato esplicitamente nella chat corrente",
         },
       },
       required: ["id_prefix", "confirmed"],
@@ -471,8 +471,7 @@ function normalizeProjectStatus(raw: string): ProjectStatus | null {
 
 async function executeTool(
   toolName: string,
-  toolInput: Record<string, unknown>,
-  context?: { siblingToolNames?: string[] }
+  toolInput: Record<string, unknown>
 ): Promise<unknown> {
   try {
     const supabase = createServiceClient();
@@ -732,33 +731,26 @@ async function executeTool(
     }
 
     case "delete_project": {
-      if (toolInput.confirmed !== true) {
-        return {
-          error:
-            "Eliminazione bloccata: serve confirmed=true solo dopo conferma esplicita di Marco.",
-        };
-      }
-      if (context?.siblingToolNames?.includes("create_project")) {
-        return {
-          error:
-            "delete_project non può essere usato come cleanup o rollback insieme a create_project.",
-        };
-      }
-
       const idPrefix = String(toolInput.id_prefix ?? "");
+      const confirmed = Boolean(toolInput.confirmed);
+
       const project = await findProjectByPrefixOrName(idPrefix);
-      if (!project) {
-        return { error: `Progetto non trovato per id "${idPrefix}".` };
+      if (!project) return { error: `Progetto non trovato: ${idPrefix}` };
+
+      if (!confirmed) {
+        return {
+          awaiting_confirmation: true,
+          project_name: project.name,
+          message: `Conferma richiesta: scrivi 'sì confermo eliminazione ${project.name}' per procedere.`,
+        };
       }
 
       const { error } = await supabase
         .from("projects")
         .delete()
         .eq("id", project.id);
-
       if (error) return { error: `Errore eliminazione: ${error.message}` };
-
-      return { deleted: true, name: project.name, id: project.id.slice(0, 8) };
+      return { deleted: true, name: project.name };
     }
 
     case "save_idea": {
@@ -1049,7 +1041,6 @@ async function runClaudeWithTools(
       });
 
       const toolBlocks = response.content.filter((b) => b.type === "tool_use");
-      const siblingToolNames = toolBlocks.map((b) => b.name);
 
       const toolResults = await Promise.all(
         toolBlocks.map(async (block) => {
@@ -1057,8 +1048,7 @@ async function runClaudeWithTools(
           try {
             const result = await executeTool(
               block.name,
-              block.input as Record<string, unknown>,
-              { siblingToolNames }
+              block.input as Record<string, unknown>
             );
             return {
               type: "tool_result" as const,
